@@ -1,0 +1,9 @@
+<library path="lib/libimageProjection">
+  <class name="loam/ImageProjection" type="loam::ImageProjection" base_class_type="nodelet::Nodelet">
+    <description>
+  ImageProjection
+    </description>
+  </class>
+  <class name="loam/LaserOdometry" type="loam::LaserOdometry" base_class_type="nodelet::Nodelet"/>
+  <class name="loam/LaserMapping" type="loam::LaserMapping" base_class_type="nodelet::Nodelet" />
+</library>
