@@ -21,7 +21,7 @@ private:
   PointCloudT::Ptr outlier_cloud_;
 
   Eigen::Matrix<float, N_SCAN, Horizon_SCAN> range_mat_;
-  Eigen::Matrix<bool, N_SCAN, Horizon_SCAN> label_mat_;
+  Eigen::Matrix<int, N_SCAN, Horizon_SCAN> label_mat_;
   Eigen::Matrix<bool, N_SCAN, Horizon_SCAN> ground_mat_;
 
   int label_cnt_;

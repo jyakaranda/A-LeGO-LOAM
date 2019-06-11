@@ -7,6 +7,7 @@ namespace loam
 
 void ImageProjection::onInit()
 {
+  TicToc t_init;
   nh_ = getNodeHandle();
 
   seg_info_msg_.startRingIndex.resize(N_SCAN);
@@ -35,16 +36,18 @@ void ImageProjection::onInit()
   pub_seg_info_ = nh_.advertise<sensor_msgs::PointCloud2>("/seg_info", 10);
   pub_outlier_ = nh_.advertise<sensor_msgs::PointCloud2>("/outlier", 10);
   sub_pc_ = nh_.subscribe<sensor_msgs::PointCloud2>("/lslidar_point_cloud", 10, boost::bind(&ImageProjection::pcCB, this, _1));
-  cout << "onInit end" << endl;
+  cout << "onInit end: " << t_init.toc() << endl;
 }
 
 void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
   cout << "pcCB" << endl;
   TicToc t_whole;
-  segmented_cloud_msg_.header = outlier_cloud_msg_.header = seg_info_msg_.header = msg->header;
+
+  seg_info_msg_.header = msg->header;
   PointCloudT::Ptr cloud_in(new PointCloudT());
   pcl::fromROSMsg(*msg, *cloud_in);
+  // ROS_INFO("cloud_in size: %d", cloud_in->points.size());
 
   int cloud_size = cloud_in->points.size();
   seg_info_msg_.startOrientation = -atan2(cloud_in->points[0].y, cloud_in->points[0].x);
@@ -59,7 +62,7 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
   }
   seg_info_msg_.orientationDiff = seg_info_msg_.endOrientation - seg_info_msg_.startOrientation;
 
-  float vertical_ang, horizon_ang, range;
+  float vertical_ang, horizon_ang;
   int row_id, col_id, index;
   for (int i = 0; i < cloud_size; ++i)
   {
@@ -73,14 +76,14 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
     }
 
     horizon_ang = RAD2ANGLE(-atan2(p.y, p.x));
-    col_id = horizon_ang / ang_res_x + 0.5;
+    col_id = horizon_ang / ang_res_x + Horizon_SCAN / 2;
     if (col_id < 0 || col_id > Horizon_SCAN)
     {
+      ROS_WARN("error col_id %d ", col_id);
       continue;
     }
 
-    range = sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
-    range_mat_(row_id, col_id) = range;
+    range_mat_(row_id, col_id) = sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
 
     p.intensity = row_id + col_id / 10000.0;
     index = col_id + row_id * Horizon_SCAN;
@@ -170,11 +173,27 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
         segmented_cloud_->points.push_back(full_cloud_->points[j + i * Horizon_SCAN]);
         ++line_size;
       }
+      else if (label_mat_(i, j) == 0 && range_mat_(i, j) != std::numeric_limits<float>::max())
+      {
+        ROS_WARN("error");
+      }
     }
     seg_info_msg_.endRingIndex[i] = line_size - 1 - 5;
   }
-
   publish();
+
+  // ROS_INFO("segmented_cloud size: %d", segmented_cloud_->points.size());
+  // ROS_INFO("outlier_cloud size: %d", outlier_cloud_->points.size());
+
+  segmented_cloud_->clear();
+  outlier_cloud_->clear();
+  range_mat_.setConstant(std::numeric_limits<float>::max());
+  label_mat_.setZero();
+  ground_mat_.setZero();
+  label_cnt_ = 1;
+  PointT nan_p;
+  nan_p.intensity = -1;
+  std::fill(full_cloud_->points.begin(), full_cloud_->points.end(), nan_p);
 
   std::cout << "image projection time: " << t_whole.toc() << " ms" << std::endl;
 }
@@ -200,6 +219,7 @@ void ImageProjection::labelComponents(int row, int col)
     que_id_i.pop();
     que_id_j.pop();
     label_mat_(from_id_i, from_id_j) = label_cnt_;
+    line_cnt_flag[from_id_i] = true;
 
     for (const auto &iter : neighbor_iter_)
     {
@@ -219,7 +239,7 @@ void ImageProjection::labelComponents(int row, int col)
       }
       if (label_mat_(this_id_i, this_id_j))
       {
-        // 已访问过
+        // 已访问过，或者是地面/Nan 点
         continue;
       }
 
@@ -236,7 +256,7 @@ void ImageProjection::labelComponents(int row, int col)
       }
 
       // 在 seg_alpha_y 上的远处点很难聚类，在近处估计还好
-      // 在 seg_alpha_x 上聚类可以接收
+      // 在 seg_alpha_x 上聚类可以接受
       angle = atan2(d2 * sin(alpha), (d1 - d2 * cos(alpha)));
       if (angle > seg_theta)
       {
@@ -295,11 +315,13 @@ void ImageProjection::publish()
   if (pub_segmented_cloud_.getNumSubscribers() > 0)
   {
     pcl::toROSMsg(*segmented_cloud_, segmented_cloud_msg_);
+    segmented_cloud_msg_.header = seg_info_msg_.header;
     pub_segmented_cloud_.publish(segmented_cloud_msg_);
   }
   if (pub_outlier_.getNumSubscribers() > 0)
   {
     pcl::toROSMsg(*outlier_cloud_, outlier_cloud_msg_);
+    outlier_cloud_msg_.header = seg_info_msg_.header;
     pub_outlier_.publish(outlier_cloud_msg_);
   }
 }

@@ -38,7 +38,7 @@
 using PointT = pcl::PointXYZI;
 using PointCloudT = pcl::PointCloud<PointT>;
 
-#define RAD2ANGLE(x) ((x) / M_PI * 180.0)
+#define RAD2ANGLE(x) ((x) * 180.0 / M_PI)
 #define ANGLE2RAD(x) ((x) / 180.0 * M_PI)
 
 const int N_SCAN = 16;
@@ -56,6 +56,9 @@ const float seg_alpha_y = ANGLE2RAD(ang_res_y);
 const float seg_theta = 1.0472;
 const int seg_valid_point_num = 5;
 const int seg_valid_line_num = 3;
+
+const bool use_imu = true;
+const bool use_odom = true;
 
 class TicToc
 {
