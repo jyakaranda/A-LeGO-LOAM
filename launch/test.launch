@@ -4,4 +4,6 @@
 
   <node pkg="nodelet" type="nodelet" name="lego_manager" args="manager" output="log" />
   <node pkg="nodelet" type="nodelet" name="ImageProjection" args="load loam/ImageProjection lego_manager" output="log" />
+  <node pkg="nodelet" type="nodelet" name="LaserOdometry" args="load loam/LaserOdometry lego_manager" output="log" />
+
 </launch>

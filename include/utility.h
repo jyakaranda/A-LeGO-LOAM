@@ -42,23 +42,27 @@ using PointCloudT = pcl::PointCloud<PointT>;
 #define ANGLE2RAD(x) ((x) / 180.0 * M_PI)
 
 const int N_SCAN = 16;
-const float ang_res_x = 0.18;
+const float ang_res_x = 0.18; // 10Hz
 const float ang_res_y = 2.0;
+const float scan_period = 0.1; // 10Hz
 
-const int Horizon_SCAN = 360.0 / ang_res_x + 0.5; // 10Hz
+const int Horizon_SCAN = 360.0 / ang_res_x + 0.5;
 const float ang_bottom = 15.0;
 const int ground_scan_id = 7;
 const float sensor_mount_ang = 0.;  // 向下为正，向上为负
 
-// 可以调调参数
 const float seg_alpha_x = ANGLE2RAD(ang_res_x);
 const float seg_alpha_y = ANGLE2RAD(ang_res_y);
+// 可以调调参数
 const float seg_theta = 1.0472;
 const int seg_valid_point_num = 5;
 const int seg_valid_line_num = 3;
 
+// (use_imu && use_odom) == false
 const bool use_imu = true;
-const bool use_odom = true;
+const bool use_odom = false;
+const int imu_queue_length = 1000;
+const int odom_queue_length = 1000;
 
 class TicToc
 {

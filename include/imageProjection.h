@@ -12,9 +12,9 @@ private:
   ros::Publisher pub_segmented_cloud_;
   ros::Publisher pub_seg_info_;
   ros::Publisher pub_outlier_;
-  sensor_msgs::PointCloud2 segmented_cloud_msg_;
-  alego::cloud_info seg_info_msg_;
-  sensor_msgs::PointCloud2 outlier_cloud_msg_;
+  sensor_msgs::PointCloud2Ptr segmented_cloud_msg_;
+  alego::cloud_infoPtr seg_info_msg_;
+  sensor_msgs::PointCloud2Ptr outlier_cloud_msg_;
 
   PointCloudT::Ptr full_cloud_;
   PointCloudT::Ptr segmented_cloud_;
