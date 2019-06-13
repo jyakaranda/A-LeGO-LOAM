@@ -10,7 +10,7 @@ void LaserOdometry::onInit()
 {
   cout << "--------- LaserOdometry init --------------" << endl;
   TicToc t_init;
- 
+
   if (use_imu && use_odom != false)
   {
     ROS_ERROR("set use_imu=false when use_odom=true");
@@ -30,6 +30,16 @@ void LaserOdometry::onInit()
   imu_shift_x_.fill(0);
   imu_shift_y_.fill(0);
   imu_shift_z_.fill(0);
+
+  system_initialized_ = false;
+  surf_last_.reset(new PointCloudT);
+  corner_last_.reset(new PointCloudT);
+  kd_surf_last_.reset(new pcl::KdTreeFLANN<PointT>);
+  kd_corner_last_.reset(new pcl::KdTreeFLANN<PointT>);
+  for (int i = 0; i < 6; ++i)
+  {
+    params_[i] = 0.;
+  }
 
   nh_ = getMTNodeHandle();
   pnh_ = getMTPrivateNodeHandle();
@@ -87,9 +97,227 @@ void LaserOdometry::mainLoop()
         continue;
       }
 
+      // step1: adjustDistortion
+      TicToc t_adj;
       PointCloudT::Ptr seg_cloud(new PointCloudT());
       pcl::fromROSMsg(*seg_cloud_buf_.front(), *seg_cloud);
       adjustDistortion(seg_cloud, t1);
+      NODELET_INFO("adjustDistortion %.3f ms", t_adj.toc());
+
+      // step2: calculateSmoothness
+      TicToc t_cal;
+      int cloud_size = seg_cloud->points.size();
+      alego::cloud_infoConstPtr seg_info = seg_info_buf_.front();
+      for (int i = 5; i < cloud_size - 5; ++i)
+      {
+        float diff_range = seg_info->segmentedCloudRange[i - 5] + seg_info->segmentedCloudRange[i - 4] + seg_info->segmentedCloudRange[i - 3] + seg_info->segmentedCloudRange[i - 2] + seg_info->segmentedCloudRange[i - 1] - seg_info->segmentedCloudRange[i] * 10 + seg_info->segmentedCloudRange[i + 1] + seg_info->segmentedCloudRange[i + 2] + seg_info->segmentedCloudRange[i + 3] + seg_info->segmentedCloudRange[i + 4] + seg_info->segmentedCloudRange[i + 5];
+        cloud_curvature_[i] = diff_range * diff_range;
+        cloud_neighbor_picked_[i] = 0;
+        cloud_label_[i] = 0;
+        cloud_sort_idx_[i] = i;
+      }
+      // step3: markOccludedPoints
+      for (int i = 5; i < cloud_size - 5; ++i)
+      {
+        float depth1 = seg_info->segmentedCloudRange[i];
+        float depth2 = seg_info->segmentedCloudRange[i + 1];
+        int col_diff = abs(seg_info->segmentedCloudColInd[i] - seg_info->segmentedCloudColInd[i + 1]);
+        if (col_diff < 10)
+        {
+          // TODO: 可以调下参数
+          if (depth1 - depth2 > 0.3)
+          {
+            cloud_neighbor_picked_[i - 5] = cloud_neighbor_picked_[i - 4] = cloud_neighbor_picked_[i - 3] = cloud_neighbor_picked_[i - 2] = cloud_neighbor_picked_[i - 1] = cloud_neighbor_picked_[i] = 1;
+          }
+          else if (depth2 - depth1 > 0.3)
+          {
+            cloud_neighbor_picked_[i + 1] = cloud_neighbor_picked_[i + 2] = cloud_neighbor_picked_[i + 3] = cloud_neighbor_picked_[i + 4] = cloud_neighbor_picked_[i + 5] = 1;
+          }
+        }
+        float diff1 = abs(seg_info->segmentedCloudRange[i - 1] - depth1);
+        float diff2 = abs(depth2 - depth1);
+        if (diff1 > 0.02 * seg_info->segmentedCloudRange[i] && diff2 > 0.02 * seg_info->segmentedCloudRange[i])
+        {
+          cloud_neighbor_picked_[i] = 1;
+        }
+      }
+      NODELET_INFO("calculateSmoothness and markOccluded %.3f ms", t_adj.toc());
+
+      // step4: extractFeatures
+      TicToc t_pts;
+      PointCloudT::Ptr sharp(new PointCloudT);
+      PointCloudT::Ptr less_sharp(new PointCloudT);
+      PointCloudT::Ptr flat(new PointCloudT);
+      PointCloudT::Ptr less_flat(new PointCloudT);
+      PointCloudT::Ptr less_flat_scan(new PointCloudT);
+
+      float t_sort = 0.;
+      for (int i = 0; i < N_SCAN; ++i)
+      {
+        less_flat_scan->clear();
+        for (int j = 0; j < 6; ++j)
+        {
+          int sp = (seg_info->startRingIndex[i] * (6 - j) + seg_info->endRingIndex[i] * j) / 6;
+          int ep = (seg_info->startRingIndex[i] * (5 - j) + seg_info->endRingIndex[i] * (j + 1)) / 6 - 1;
+          TicToc t_tmp;
+          std::sort(cloud_sort_idx_.begin() + sp, cloud_sort_idx_.begin() + ep + 1, [this](int i, int j) { return cloud_curvature_[i] < cloud_curvature_[j]; });
+          t_sort += t_tmp.toc();
+
+          int picked_num = 0;
+          for (int k = ep; k >= sp; --k)
+          {
+            int idx = cloud_sort_idx_[k];
+            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] > 0.1 && seg_info->segmentedCloudGroundFlag[idx] == false)
+            {
+              ++picked_num;
+              cloud_neighbor_picked_[idx] = 1;
+              if (picked_num <= 2)
+              {
+                cloud_label_[idx] = 2;
+                sharp->push_back(seg_cloud->points[idx]);
+                less_sharp->push_back(seg_cloud->points[idx]);
+              }
+              else if (picked_num <= 20)
+              {
+                cloud_label_[idx] = 1;
+                less_sharp->push_back(seg_cloud->points[idx]);
+              }
+              else
+              {
+                break;
+              }
+              for (int l = 1; l <= 5; ++l)
+              {
+                int col_diff = abs(seg_info->segmentedCloudColInd[idx + l] - seg_info->segmentedCloudColInd[idx + l - 1]);
+                if (col_diff > 10)
+                {
+                  break;
+                }
+                else
+                {
+                  cloud_neighbor_picked_[idx + l] = 1;
+                }
+              }
+              for (int l = -1; l >= -5; --l)
+              {
+                int col_diff = abs(seg_info->segmentedCloudColInd[idx + l] - seg_info->segmentedCloudColInd[idx + l + 1]);
+                if (col_diff > 10)
+                {
+                  break;
+                }
+                else
+                {
+                  cloud_neighbor_picked_[idx + l] = 1;
+                }
+              }
+            }
+          }
+
+          picked_num = 0;
+          for (int k = sp; k <= ep; ++k)
+          {
+            int idx = cloud_sort_idx_[k];
+            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] < 0.1 && seg_info->segmentedCloudGroundFlag[idx] == true)
+            {
+              cloud_label_[idx] = -1;
+              flat->push_back(seg_cloud->points[idx]);
+              ++picked_num;
+              cloud_neighbor_picked_[idx] = 1;
+              if (picked_num >= 4)
+              {
+                break;
+              }
+              for (int l = 1; l <= 5; ++l)
+              {
+                int col_diff = abs(seg_info->segmentedCloudColInd[idx + l] - seg_info->segmentedCloudColInd[idx + l - 1]);
+                if (col_diff > 10)
+                {
+                  break;
+                }
+                else
+                {
+                  cloud_neighbor_picked_[idx + l] = 1;
+                }
+              }
+              for (int l = -1; l >= -5; --l)
+              {
+                int col_diff = abs(seg_info->segmentedCloudColInd[idx + l] - seg_info->segmentedCloudColInd[idx + l + 1]);
+                if (col_diff > 10)
+                {
+                  break;
+                }
+                else
+                {
+                  cloud_neighbor_picked_[idx + 1] = 1;
+                }
+              }
+            }
+          }
+
+          for (int k = sp; k <= ep; ++k)
+          {
+            if (cloud_label_[k] <= 0)
+            {
+              less_flat_scan->push_back(seg_cloud->points[k]);
+            }
+          }
+        }
+
+        PointCloudT::Ptr less_flat_scan_ds(new PointCloudT);
+        pcl::VoxelGrid<PointT> ds;
+        ds.setLeafSize(0.2, 0.2, 0.2);
+        ds.setInputCloud(less_flat_scan);
+        ds.filter(*less_flat_scan_ds);
+        *less_flat += *less_flat_scan_ds;
+      }
+
+      NODELET_INFO("sort curvature value time: %.3f", t_sort);
+      NODELET_INFO("feature prepare time: %.3f", t_pts.toc());
+
+      if (pub_corner_.getNumSubscribers() > 0 || pub_corner_less_.getNumSubscribers() > 0 || pub_surf_.getNumSubscribers() > 0 || pub_surf_less_.getNumSubscribers() > 0)
+      {
+        sensor_msgs::PointCloud2Ptr msg_sharp(new sensor_msgs::PointCloud2);
+        sensor_msgs::PointCloud2Ptr msg_less_sharp(new sensor_msgs::PointCloud2);
+        sensor_msgs::PointCloud2Ptr msg_flat(new sensor_msgs::PointCloud2);
+        sensor_msgs::PointCloud2Ptr msg_less_flat(new sensor_msgs::PointCloud2);
+        pcl::toROSMsg(*sharp, *msg_sharp);
+        pcl::toROSMsg(*less_sharp, *msg_less_sharp);
+        pcl::toROSMsg(*flat, *msg_flat);
+        pcl::toROSMsg(*less_flat, *msg_less_flat);
+        msg_sharp->header = msg_less_sharp->header = msg_flat->header = msg_less_flat->header = seg_cloud_buf_.front()->header;
+        pub_corner_.publish(msg_sharp);
+        pub_corner_less_.publish(msg_less_sharp);
+        pub_surf_.publish(msg_flat);
+        pub_surf_less_.publish(msg_less_flat);
+      }
+
+      if (system_initialized_ == false)
+      {
+        system_initialized_ = true;
+        surf_last_ = less_flat;
+        corner_last_ = less_sharp;
+        kd_surf_last_->setInputCloud(surf_last_);
+        kd_corner_last_->setInputCloud(corner_last_);
+        NODELET_INFO("system initialized");
+      }
+      else
+      {
+        TicToc t_opt;
+        for (int i = 0; i < 2; ++i)
+        {
+          int corner_correspondance = 0, plane_correspondance = 0;
+          ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
+          ceres::Problem::Options problem_options;
+          ceres::Problem problem(problem_options);
+          std::vector<int> search_idx;
+          std::vector<float> search_dist;
+          for (int j = 0; j < sharp->points.size(); ++j)
+          {
+            PointT point_sel, point_a, point_b;
+          }
+        }
+      }
+
       seg_cloud_buf_.pop();
       seg_info_buf_.pop();
       outlier_buf_.pop();
@@ -99,54 +327,37 @@ void LaserOdometry::mainLoop()
 
 void LaserOdometry::adjustDistortion(PointCloudT::Ptr cloud, double scan_time)
 {
-  NODELET_INFO("scan_time %.6f", scan_time);
-  bool half_passed = false;
   int cloud_size = cloud->points.size();
 
-  float start_ori = seg_info_buf_.front()->startOrientation;
-  float end_ori = seg_info_buf_.front()->endOrientation;
+  alego::cloud_infoConstPtr seg_info = seg_info_buf_.front();
+  int start_ori = (seg_info->startOrientation + 2 * M_PI) / Horizon_SCAN;
+  int end_ori = (seg_info->endOrientation + 2 * M_PI) / Horizon_SCAN;
+  if (start_ori >= Horizon_SCAN)
+  {
+    start_ori -= Horizon_SCAN;
+  }
+  if (end_ori >= Horizon_SCAN)
+  {
+    end_ori -= Horizon_SCAN;
+  }
 
-  float ori_diff = seg_info_buf_.front()->orientationDiff;
+  int ori_diff = end_ori - start_ori;
+  if (ori_diff <= 0)
+  {
+    NODELET_WARN("ori_diff <= 0");
+    ori_diff = Horizon_SCAN;
+  }
   Eigen::Vector3f rpy_start, shift_start, velo_start, rpy_cur, shift_cur, velo_cur;
   Eigen::Vector3f shift_from_start;
   Eigen::Matrix3f r_s_i, r_c;
   Eigen::Vector3f adjusted_p;
-  float ori_h;
+  int ori_h;
 
   for (int i = 0; i < cloud_size; ++i)
   {
     PointT &p = cloud->points[i];
-    ori_h = -std::atan2(p.y, p.x);
-    if (!half_passed)
-    {
-      if (ori_h < start_ori - M_PI * 0.5)
-      {
-        ori_h += 2 * M_PI;
-      }
-      else if (ori_h > start_ori + M_PI * 1.5)
-      {
-        ori_h -= 2 * M_PI;
-      }
 
-      if (ori_h - start_ori > M_PI)
-      {
-        half_passed = true;
-      }
-    }
-    else
-    {
-      ori_h += 2 * M_PI;
-      if (ori_h < end_ori - 1.5 * M_PI)
-      {
-        ori_h += 2 * M_PI;
-      }
-      else if (ori_h > end_ori + 0.5 * M_PI)
-      {
-        ori_h -= 2 * M_PI;
-      }
-    }
-
-    double rel_time = (ori_h - start_ori) / ori_diff * scan_period;
+    double rel_time = (seg_info->segmentedCloudColInd[i] - start_ori) * scan_period / ori_diff;
     double cur_time = scan_time + rel_time;
 
     if (use_imu)
@@ -164,7 +375,7 @@ void LaserOdometry::adjustDistortion(PointCloudT::Ptr cloud, double scan_time)
         }
         if (abs(cur_time - imu_time_[imu_ptr_front_]) > scan_period)
         {
-          NODELET_WARN_COND(i < 5 ,"unsync imu and pc msg %d, %d, %.6f, %.6f", imu_ptr_front_, imu_ptr_last_, cur_time, imu_time_[imu_ptr_front_]);
+          NODELET_WARN_COND(i < 5, "unsync imu and pc msg %d, %d, %.6f, %.6f", imu_ptr_front_, imu_ptr_last_, cur_time, imu_time_[imu_ptr_front_]);
           continue;
         }
 
@@ -286,6 +497,10 @@ void LaserOdometry::adjustDistortion(PointCloudT::Ptr cloud, double scan_time)
   }
 }
 
+void LaserOdometry::transformToStart(const PointT &pi, PointT &po)
+{
+}
+
 void LaserOdometry::segCloudHandler(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
   m_buf_.lock();
@@ -358,4 +573,10 @@ void LaserOdometry::odomHandler(const nav_msgs::OdometryConstPtr &msg)
   odom_pitch_[odom_ptr_last_] = pitch;
   odom_yaw_[odom_ptr_last_] = yaw;
 }
+
+bool LaserOdometry::CornerCostFunction::Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
+{
+  return true;
+}
+
 } // namespace loam

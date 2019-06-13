@@ -80,9 +80,13 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
       continue;
     }
 
-    horizon_ang = RAD2ANGLE(-atan2(p.y, p.x));
-    col_id = horizon_ang / ang_res_x + Horizon_SCAN / 2;
-    if (col_id < 0 || col_id > Horizon_SCAN)
+    horizon_ang = RAD2ANGLE(-atan2(p.y, p.x) + 2 * M_PI);
+    col_id = horizon_ang / ang_res_x;
+    if (col_id >= Horizon_SCAN)
+    {
+      col_id -= Horizon_SCAN;
+    }
+    if (col_id < 0 || col_id >= Horizon_SCAN)
     {
       ROS_WARN("error col_id %d ", col_id);
       continue;
