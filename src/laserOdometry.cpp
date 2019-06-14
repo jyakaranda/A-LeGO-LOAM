@@ -1,7 +1,7 @@
 #include "utility.h"
 #include "laserOdometry.h"
 
-PLUGINLIB_EXPORT_CLASS(loam::LaserOdometry, nodelet::Nodelet)
+PLUGINLIB_EXPORT_CLASS(loam::LaserOdometry, nodelet::Nodelet);
 
 namespace loam
 {
@@ -40,6 +40,8 @@ void LaserOdometry::onInit()
   {
     params_[i] = 0.;
   }
+  t_w_cur_.setZero();
+  r_w_cur_.setIdentity();
 
   nh_ = getMTNodeHandle();
   pnh_ = getMTPrivateNodeHandle();
@@ -49,6 +51,8 @@ void LaserOdometry::onInit()
   pub_surf_ = nh_.advertise<sensor_msgs::PointCloud2>("/surf", 10);
   pub_surf_less_ = nh_.advertise<sensor_msgs::PointCloud2>("/surf_less", 10);
   pub_undistorted_pc_ = nh_.advertise<sensor_msgs::PointCloud2>("/undistorted", 10);
+  pub_odom_ = nh_.advertise<nav_msgs::Odometry>("/odom/lidar", 10);
+  pub_path_ = nh_.advertise<nav_msgs::Path>("/path/odom", 10);
 
   sub_segmented_cloud_ = nh_.subscribe<sensor_msgs::PointCloud2>("/segmented_cloud", 10, boost::bind(&LaserOdometry::segCloudHandler, this, _1));
   sub_segmented_info_ = nh_.subscribe<alego::cloud_info>("/seg_info", 10, boost::bind(&LaserOdometry::segInfoHandler, this, _1));
@@ -70,6 +74,7 @@ void LaserOdometry::onInit()
 void LaserOdometry::mainLoop()
 {
   ros::Rate rate(100);
+  nav_msgs::PathPtr laser_path(new nav_msgs::Path);
   while (ros::ok())
   {
     rate.sleep();
@@ -302,20 +307,200 @@ void LaserOdometry::mainLoop()
       }
       else
       {
+        // ceres 优化
         TicToc t_opt;
         for (int i = 0; i < 2; ++i)
         {
-          int corner_correspondance = 0, plane_correspondance = 0;
+          TicToc t_data;
+          int corner_correspondance = 0, surf_correspondance = 0;
           ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
           ceres::Problem::Options problem_options;
           ceres::Problem problem(problem_options);
+          problem.AddParameterBlock(params_, 6);
           std::vector<int> search_idx;
           std::vector<float> search_dist;
           for (int j = 0; j < sharp->points.size(); ++j)
           {
-            PointT point_sel, point_a, point_b;
+            PointT point_sel;
+            transformToStart(sharp->points[j], point_sel);
+            kd_corner_last_->nearestKSearch(point_sel, 1, search_idx, search_dist);
+            int closest_idx = -1, min_idx2 = -1;
+            if (search_dist[0] < nearest_feature_dist)
+            {
+              closest_idx = search_idx[0];
+              int closest_scan = int(corner_last_->points[closest_idx].intensity);
+              float point_dist, min_point_dist2 = nearest_feature_dist;
+              // lego 这里 k 的范围写的不对
+              for (int k = closest_scan + 1; k < corner_last_->points.size(); ++k)
+              {
+                if (int(corner_last_->points[k].intensity) > closest_scan + 2)
+                {
+                  break;
+                }
+                point_dist = pow(corner_last_->points[k].x - point_sel.x, 2) + pow(corner_last_->points[k].y - point_sel.y, 2) + pow(corner_last_->points[k].z - point_sel.z, 2);
+                if (int(corner_last_->points[k].intensity) > closest_scan)
+                {
+                  if (point_dist < min_point_dist2)
+                  {
+                    min_point_dist2 = point_dist;
+                    min_idx2 = k;
+                  }
+                }
+              }
+              for (int k = closest_scan - 1; k >= 0; --k)
+              {
+                if (int(corner_last_->points[k].intensity) < closest_scan - 2.5)
+                {
+                  break;
+                }
+                point_dist = pow(corner_last_->points[k].x - point_sel.x, 2) + pow(corner_last_->points[k].y - point_sel.y, 2) + pow(corner_last_->points[k].z - point_sel.z, 2);
+                if (int(corner_last_->points[k].intensity) < closest_scan)
+                {
+                  if (point_dist < min_point_dist2)
+                  {
+                    min_point_dist2 = point_dist;
+                    min_idx2 = k;
+                  }
+                }
+              }
+            }
+
+            if (min_idx2 >= 0)
+            {
+              Eigen::Vector3d cp(sharp->points[j].x, sharp->points[j].y, sharp->points[j].z);
+              Eigen::Vector3d lpj(corner_last_->points[closest_idx].x, corner_last_->points[closest_idx].y, corner_last_->points[closest_idx].z);
+              Eigen::Vector3d lpl(corner_last_->points[min_idx2].x, corner_last_->points[min_idx2].y, corner_last_->points[min_idx2].z);
+              // problem.AddResidualBlock(new CornerCostFunction(cp, lpj, lpl),
+              //                          loss_function, params_);
+              ceres::CostFunction *cost_function = LidarEdgeFactor::Create(cp, lpj, lpl, 1);
+              problem.AddResidualBlock(cost_function, loss_function, params_);
+
+              ++corner_correspondance;
+            }
           }
+          for (int j = 0; j < flat->points.size(); ++j)
+          {
+            PointT point_sel;
+            transformToStart(flat->points[j], point_sel);
+            kd_surf_last_->nearestKSearch(point_sel, 1, search_idx, search_dist);
+            int closest_idx = -1, min_idx2 = -1, min_idx3 = -1;
+            if (search_dist[0] < nearest_feature_dist)
+            {
+              closest_idx = search_idx[0];
+              float point_dist, min_dist2 = nearest_feature_dist, min_dist3 = nearest_feature_dist;
+              int closest_scan = (surf_last_->points[closest_idx].intensity);
+              for (int k = closest_idx + 1; k < surf_last_->points.size(); ++k)
+              {
+                if (int(surf_last_->points[k].intensity) > closest_scan + 2)
+                {
+                  break;
+                }
+                point_dist = pow(surf_last_->points[k].x - point_sel.x, 2) + pow(surf_last_->points[k].y - point_sel.y, 2) + pow(surf_last_->points[k].z - point_sel.z, 2);
+                if (int(surf_last_->points[k].intensity) <= closest_scan)
+                {
+                  if (point_dist < min_dist2)
+                  {
+                    min_dist2 = point_dist;
+                    min_idx2 = k;
+                  }
+                }
+                else
+                {
+                  if (point_dist < min_dist3)
+                  {
+                    min_dist3 = point_dist;
+                    min_idx3 = k;
+                  }
+                }
+              }
+              for (int k = closest_idx - 1; k >= 0; --k)
+              {
+                if (int(surf_last_->points[k].intensity) < closest_scan - 2)
+                {
+                  break;
+                }
+                point_dist = pow(surf_last_->points[k].x - point_sel.x, 2) + pow(surf_last_->points[k].y - point_sel.y, 2) + pow(surf_last_->points[k].z - point_sel.z, 2);
+                if (int(surf_last_->points[k].intensity) >= closest_scan)
+                {
+                  if (point_dist < min_dist2)
+                  {
+                    min_dist2 = point_dist;
+                    min_idx2 = k;
+                  }
+                }
+                else
+                {
+                  if (point_dist < min_dist3)
+                  {
+                    min_dist3 = point_dist;
+                    min_idx3 = k;
+                  }
+                }
+              }
+
+              if (min_idx2 >= 0 && min_idx3 >= 0)
+              {
+                Eigen::Vector3d cp(flat->points[j].x, flat->points[j].y, flat->points[j].z);
+                Eigen::Vector3d lpj(surf_last_->points[closest_idx].x, surf_last_->points[closest_idx].y, surf_last_->points[closest_idx].z);
+                Eigen::Vector3d lpl(surf_last_->points[min_idx2].x, surf_last_->points[min_idx2].y, surf_last_->points[min_idx2].z);
+                Eigen::Vector3d lpm(surf_last_->points[min_idx3].x, surf_last_->points[min_idx3].y, surf_last_->points[min_idx3].z);
+                // problem.AddResidualBlock(new SurfCostFunction(cp, lpj, lpl, lpm), loss_function, params_);
+                ceres::CostFunction *cost_function = LidarPlaneFactor::Create(cp, lpj, lpl, lpm, 1);
+                problem.AddResidualBlock(cost_function, loss_function, params_);
+                ++surf_correspondance;
+              }
+            }
+          }
+          NODELET_INFO("corner correspondance: %d, surf correspondance: %d", corner_correspondance, surf_correspondance);
+          NODELET_INFO("data association time: %.3fms", t_data.toc());
+          if ((corner_correspondance + surf_correspondance) < 10)
+          {
+            NODELET_WARN("********** less correspondace *************");
+          }
+
+          TicToc t_solver;
+          ceres::Solver::Options options;
+          options.linear_solver_type = ceres::DENSE_QR;
+          options.max_num_iterations = 20;
+          options.minimizer_progress_to_stdout = false;
+          ceres::Solver::Summary summary;
+          ceres::Solve(options, &problem, &summary);
+          NODELET_INFO("solver time %f ms \n", t_solver.toc());
+          NODELET_INFO_STREAM(summary.FullReport());
         }
+        Eigen::Vector3f t_last_cur(params_[0], params_[1], params_[2]);
+        Eigen::Matrix3f r_last_cur = (Eigen::AngleAxisf(params_[5], Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(params_[4], Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(params_[3], Eigen::Vector3f::UnitX())).toRotationMatrix();
+        t_w_cur_ = t_w_cur_ + r_w_cur_ * t_last_cur;
+        r_w_cur_ = r_w_cur_ * r_last_cur;
+        NODELET_INFO("t_last_cur: %.3f, %.3f, %.3f, r_last_cur: %.3f, %.3f, %.3f", params_[0], params_[1], params_[2], params_[3], params_[4], params_[5]);
+        NODELET_INFO_STREAM("t_w_cur: " << t_w_cur_ << "\nr_w_cur: " << r_w_cur_);
+        // publish odometry
+        Eigen::Quaternionf tmp_q(r_w_cur_);
+        nav_msgs::OdometryPtr laser_odometry(new nav_msgs::Odometry);
+        laser_odometry->header.frame_id = "/odom";
+        laser_odometry->child_frame_id = "/laser";
+        laser_odometry->header.stamp = ros::Time().fromSec(t1);
+        laser_odometry->pose.pose.orientation.x = tmp_q.x();
+        laser_odometry->pose.pose.orientation.y = tmp_q.y();
+        laser_odometry->pose.pose.orientation.z = tmp_q.z();
+        laser_odometry->pose.pose.orientation.w = tmp_q.w();
+        laser_odometry->pose.pose.position.x = t_w_cur_.x();
+        laser_odometry->pose.pose.position.y = t_w_cur_.y();
+        laser_odometry->pose.pose.position.z = t_w_cur_.z();
+        pub_odom_.publish(laser_odometry);
+
+        geometry_msgs::PoseStamped laser_pose;
+        laser_pose.header = laser_odometry->header;
+        laser_pose.pose = laser_odometry->pose.pose;
+        laser_path->header.stamp = laser_odometry->header.stamp;
+        laser_path->poses.push_back(laser_pose);
+        laser_path->header.frame_id = "/odom";
+        pub_path_.publish(laser_path);
+
+        surf_last_ = less_flat;
+        corner_last_ = less_sharp;
+        kd_surf_last_->setInputCloud(surf_last_);
+        kd_corner_last_->setInputCloud(corner_last_);
       }
 
       seg_cloud_buf_.pop();
@@ -492,13 +677,23 @@ void LaserOdometry::adjustDistortion(PointCloudT::Ptr cloud, double scan_time)
     sensor_msgs::PointCloud2Ptr msg(new sensor_msgs::PointCloud2());
     pcl::toROSMsg(*cloud, *msg);
     msg->header.stamp.fromSec(scan_time);
-    msg->header.frame_id = "/laser";
+    msg->header.frame_id = "laser";
     pub_undistorted_pc_.publish(msg);
   }
 }
 
 void LaserOdometry::transformToStart(const PointT &pi, PointT &po)
 {
+  float s = 1;
+  Eigen::Matrix3f r_point_last = (Eigen::AngleAxisf(params_[5] * s, Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(params_[4] * s, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(params_[3] * s, Eigen::Vector3f::UnitX())).toRotationMatrix();
+  Eigen::Vector3f t_point_last(params_[0] * s, params_[1] * s, params_[2] * s);
+  Eigen::Vector3f point(pi.x, pi.y, pi.z);
+  Eigen::Vector3f un_point = r_point_last * point + t_point_last;
+
+  po.x = un_point.x();
+  po.y = un_point.y();
+  po.z = un_point.z();
+  po.intensity = pi.intensity;
 }
 
 void LaserOdometry::segCloudHandler(const sensor_msgs::PointCloud2ConstPtr &msg)
@@ -576,6 +771,103 @@ void LaserOdometry::odomHandler(const nav_msgs::OdometryConstPtr &msg)
 
 bool LaserOdometry::CornerCostFunction::Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
 {
+  Eigen::Vector3f lp = (Eigen::AngleAxisf(parameters[0][5], Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(parameters[0][4], Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(parameters[0][3], Eigen::Vector3f::UnitX())) * cp_ + Eigen::Vector3f(parameters[0][0], parameters[0][1], parameters[0][2]);
+  double k = std::sqrt(std::pow(lpj_.x() - lpl_.x(), 2) + std::pow(lpj_.y() - lpl_.y(), 2) + std::pow(lpj_.z() - lpl_.z(), 2));
+  double a = (lp.y() - lpj_.y()) * (lp.z() - lpl_.z()) - (lp.z() - lpj_.z()) * (lp.y() - lpl_.y());
+  double b = (lp.z() - lpj_.z()) * (lp.x() - lpl_.x()) - (lp.x() - lpj_.x()) * (lp.z() - lpl_.z());
+  double c = (lp.x() - lpj_.x()) * (lp.y() - lpl_.y()) - (lp.y() - lpj_.y()) * (lp.x() - lpl_.x());
+  double m = std::sqrt(a * a + b * b + c * c);
+
+  residuals[0] = m / k;
+
+  double dm_dx = (b * (lpl_.z() - lpj_.z()) + c * (lpj_.y() - lpl_.y())) / m;
+  double dm_dy = (a * (lpj_.z() - lpl_.z()) - c * (lpj_.x() - lpl_.x())) / m;
+  double dm_dz = (-a * (lpj_.y() - lpl_.y()) + b * (lpj_.x() - lpl_.x())) / m;
+
+  double sr = std::sin(parameters[0][3]);
+  double cr = std::cos(parameters[0][3]);
+  double sp = std::sin(parameters[0][4]);
+  double cp = std::cos(parameters[0][4]);
+  double sy = std::sin(parameters[0][5]);
+  double cy = std::cos(parameters[0][5]);
+
+  double dx_dr = (cy * sp * cr + sr * sy) * cp_.y() + (sy * cr - cy * sr * sp) * cp_.z();
+  double dy_dr = (-cy * sr + sy * sp * cr) * cp_.y() + (-sr * sy * sp - cy * cr) * cp_.z();
+  double dz_dr = cp * cr * cp_.y() - cp * sr * cp_.z();
+
+  double dx_dp = -cy * sp * cp_.x() + cy * cp * sr * cp_.y() + cy * cr * cp * cp_.z();
+  double dy_dp = -sp * sy * cp_.x() + sy * cp * sr * cp_.y() + cr * sr * cp * cp_.z();
+  double dz_dp = -cp * cp_.x() - sp * sr * cp_.y() - sp * cr * cp_.z();
+
+  double dx_dy = -sy * cp * cp_.x() - (sy * sp * sr + cr * cy) * cp_.y() + (cy * sr - sy * cr * sp) * cp_.z();
+  double dy_dy = cp * cy * cp_.x() + (-sy * cr + cy * sp * sr) * cp_.y() + (cy * cr * sp + sy * sr) * cp_.z();
+  double dz_dy = 0.;
+
+  if (jacobians && jacobians[0])
+  {
+    jacobians[0][0] = dm_dx / k;
+    jacobians[0][1] = dm_dy / k;
+    jacobians[0][2] = dm_dz / k;
+    jacobians[0][3] = (dm_dx * dx_dr + dm_dy * dy_dr + dm_dz * dz_dr) / k;
+    jacobians[0][4] = (dm_dx * dx_dp + dm_dy * dy_dp + dm_dz * dz_dp) / k;
+    jacobians[0][5] = (dm_dx * dx_dy + dm_dy * dy_dy + dm_dz * dz_dy) / k;
+    printf("lp: %.3f, %.3f, %.3f; lpj: %.3f, %.3f, %.3f; lpl: %.3f, %.3f, %.3f", lp.x(), lp.y(), lp.z(), lpj_.x(), lpj_.y(), lpj_.z(), lpl_.x(), lpl_.y(), lpl_.z());
+    printf("residual: %.3f\n", residuals[0]);
+    printf("J: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f\n", jacobians[0][0], jacobians[0][1], jacobians[0][2], jacobians[0][3], jacobians[0][4], jacobians[0][5]);
+  }
+
+  return true;
+}
+
+bool LaserOdometry::SurfCostFunction::Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
+{
+  Eigen::Vector3f lp = (Eigen::AngleAxisf(parameters[0][5], Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(parameters[0][4], Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(parameters[0][3], Eigen::Vector3f::UnitX())) * cp_ + Eigen::Vector3f(parameters[0][0], parameters[0][1], parameters[0][2]);
+  double a = (lpj_.y() - lpl_.y()) * (lpj_.z() - lpm_.z()) - (lpj_.z() - lpl_.z()) * (lpj_.y() - lpm_.y());
+  double b = (lpj_.z() - lpl_.z()) * (lpj_.x() - lpm_.x()) - (lpj_.x() - lpl_.x()) * (lpj_.z() - lpm_.z());
+  double c = (lpj_.x() - lpl_.x()) * (lpj_.y() - lpm_.y()) - (lpj_.y() - lpl_.y()) * (lpj_.x() - lpm_.x());
+  a *= a;
+  b *= b;
+  c *= c;
+  double m = std::sqrt(std::pow((lp.x() - lpj_.x()), 2) * a + std::pow((lp.y() - lpj_.y()), 2) * b + std::pow((lp.z() - lpj_.z()), 2) * c);
+  double k = std::sqrt(a + b + c);
+
+  residuals[0] = m / k;
+
+  double tmp = m * k;
+
+  double dm_dx = ((lp.x() - lpj_.x()) * a) / tmp;
+  double dm_dy = ((lp.y() - lpj_.y()) * b) / tmp;
+  double dm_dz = ((lp.z() - lpj_.z()) * c) / tmp;
+
+  double sr = std::sin(parameters[0][3]);
+  double cr = std::cos(parameters[0][3]);
+  double sp = std::sin(parameters[0][4]);
+  double cp = std::cos(parameters[0][4]);
+  double sy = std::sin(parameters[0][5]);
+  double cy = std::cos(parameters[0][5]);
+
+  double dx_dr = (cy * sp * cr + sr * sy) * cp_.y() + (sy * cr - cy * sr * sp) * cp_.z();
+  double dy_dr = (-cy * sr + sy * sp * cr) * cp_.y() + (-sr * sy * sp - cy * cr) * cp_.z();
+  double dz_dr = cp * cr * cp_.y() - cp * sr * cp_.z();
+
+  double dx_dp = -cy * sp * cp_.x() + cy * cp * sr * cp_.y() + cy * cr * cp * cp_.z();
+  double dy_dp = -sp * sy * cp_.x() + sy * cp * sr * cp_.y() + cr * sr * cp * cp_.z();
+  double dz_dp = -cp * cp_.x() - sp * sr * cp_.y() - sp * cr * cp_.z();
+
+  double dx_dy = -sy * cp * cp_.x() - (sy * sp * sr + cr * cy) * cp_.y() + (cy * sr - sy * cr * sp) * cp_.z();
+  double dy_dy = cp * cy * cp_.x() + (-sy * cr + cy * sp * sr) * cp_.y() + (cy * cr * sp + sy * sr) * cp_.z();
+  double dz_dy = 0.;
+
+  if (jacobians && jacobians[0])
+  {
+    jacobians[0][0] = dm_dx / k;
+    jacobians[0][1] = dm_dy / k;
+    jacobians[0][2] = dm_dz / k;
+    jacobians[0][3] = (dm_dx * dx_dr + dm_dy * dy_dr + dm_dz * dz_dr) / k;
+    jacobians[0][4] = (dm_dx * dx_dp + dm_dy * dy_dp + dm_dz * dz_dp) / k;
+    jacobians[0][5] = (dm_dx * dx_dy + dm_dy * dy_dy + dm_dz * dz_dy) / k;
+  }
+
   return true;
 }
 

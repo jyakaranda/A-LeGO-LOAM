@@ -16,6 +16,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Imu.h>
 #include <nav_msgs/Odometry.h>
+#include <nav_msgs/Path.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <tf/tf.h>
 #include <tf/transform_broadcaster.h>
@@ -34,6 +35,9 @@
 
 #include <Eigen/Geometry>
 #include <Eigen/Core>
+
+#include <ceres/ceres.h>
+#include <ceres/rotation.h>
 
 using PointT = pcl::PointXYZI;
 using PointCloudT = pcl::PointCloud<PointT>;
@@ -63,6 +67,8 @@ const bool use_imu = true;
 const bool use_odom = false;
 const int imu_queue_length = 1000;
 const int odom_queue_length = 1000;
+
+const float nearest_feature_dist = 25.; // sqaured, 对应 5m
 
 class TicToc
 {

@@ -2,7 +2,7 @@
 
   <param name="use_sim_time" value="true" />
 
-  <node pkg="nodelet" type="nodelet" name="lego_manager" args="manager" output="log" />
+  <node pkg="nodelet" type="nodelet" name="lego_manager" args="manager" output="screen" />
   <node pkg="nodelet" type="nodelet" name="ImageProjection" args="load loam/ImageProjection lego_manager" output="log" />
   <node pkg="nodelet" type="nodelet" name="LaserOdometry" args="load loam/LaserOdometry lego_manager" output="log" />
 
