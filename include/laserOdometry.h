@@ -83,25 +83,25 @@ private:
   class CornerCostFunction : public ceres::SizedCostFunction<1, 6>
   {
   public:
-    CornerCostFunction(Eigen::Vector3f cp, Eigen::Vector3f lpj, Eigen::Vector3f lpl) : cp_(cp), lpj_(lpj), lpl_(lpl) {}
+    CornerCostFunction(Eigen::Vector3d cp, Eigen::Vector3d lpj, Eigen::Vector3d lpl) : cp_(cp), lpj_(lpj), lpl_(lpl) {}
     ~CornerCostFunction() {}
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const override;
 
   private:
-    Eigen::Vector3f cp_;        // under t frame
-    Eigen::Vector3f lpj_, lpl_; // under t-1 frame
+    Eigen::Vector3d cp_;        // under t frame
+    Eigen::Vector3d lpj_, lpl_; // under t-1 frame
   };
 
   class SurfCostFunction : public ceres::SizedCostFunction<1, 6>
   {
   public:
-    SurfCostFunction(Eigen::Vector3f cp, Eigen::Vector3f lpj, Eigen::Vector3f lpl, Eigen::Vector3f lpm) : cp_(cp), lpj_(lpj), lpl_(lpl), lpm_(lpm) {}
+    SurfCostFunction(Eigen::Vector3d cp, Eigen::Vector3d lpj, Eigen::Vector3d lpl, Eigen::Vector3d lpm) : cp_(cp), lpj_(lpj), lpl_(lpl), lpm_(lpm) {}
     ~SurfCostFunction() {}
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const override;
 
   private:
-    Eigen::Vector3f cp_;
-    Eigen::Vector3f lpj_, lpl_, lpm_;
+    Eigen::Vector3d cp_;
+    Eigen::Vector3d lpj_, lpl_, lpm_;
   };
 
   struct LidarEdgeFactor

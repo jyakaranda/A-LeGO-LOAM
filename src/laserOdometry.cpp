@@ -370,10 +370,10 @@ void LaserOdometry::mainLoop()
               Eigen::Vector3d cp(sharp->points[j].x, sharp->points[j].y, sharp->points[j].z);
               Eigen::Vector3d lpj(corner_last_->points[closest_idx].x, corner_last_->points[closest_idx].y, corner_last_->points[closest_idx].z);
               Eigen::Vector3d lpl(corner_last_->points[min_idx2].x, corner_last_->points[min_idx2].y, corner_last_->points[min_idx2].z);
-              // problem.AddResidualBlock(new CornerCostFunction(cp, lpj, lpl),
-              //                          loss_function, params_);
-              ceres::CostFunction *cost_function = LidarEdgeFactor::Create(cp, lpj, lpl, 1);
-              problem.AddResidualBlock(cost_function, loss_function, params_);
+              problem.AddResidualBlock(new CornerCostFunction(cp, lpj, lpl),
+                                       loss_function, params_);
+              // ceres::CostFunction *cost_function = LidarEdgeFactor::Create(cp, lpj, lpl, 1);
+              // problem.AddResidualBlock(cost_function, loss_function, params_);
 
               ++corner_correspondance;
             }
@@ -444,9 +444,9 @@ void LaserOdometry::mainLoop()
                 Eigen::Vector3d lpj(surf_last_->points[closest_idx].x, surf_last_->points[closest_idx].y, surf_last_->points[closest_idx].z);
                 Eigen::Vector3d lpl(surf_last_->points[min_idx2].x, surf_last_->points[min_idx2].y, surf_last_->points[min_idx2].z);
                 Eigen::Vector3d lpm(surf_last_->points[min_idx3].x, surf_last_->points[min_idx3].y, surf_last_->points[min_idx3].z);
-                // problem.AddResidualBlock(new SurfCostFunction(cp, lpj, lpl, lpm), loss_function, params_);
-                ceres::CostFunction *cost_function = LidarPlaneFactor::Create(cp, lpj, lpl, lpm, 1);
-                problem.AddResidualBlock(cost_function, loss_function, params_);
+                problem.AddResidualBlock(new SurfCostFunction(cp, lpj, lpl, lpm), loss_function, params_);
+                // ceres::CostFunction *cost_function = LidarPlaneFactor::Create(cp, lpj, lpl, lpm, 1);
+                // problem.AddResidualBlock(cost_function, loss_function, params_);
                 ++surf_correspondance;
               }
             }
@@ -771,7 +771,7 @@ void LaserOdometry::odomHandler(const nav_msgs::OdometryConstPtr &msg)
 
 bool LaserOdometry::CornerCostFunction::Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
 {
-  Eigen::Vector3f lp = (Eigen::AngleAxisf(parameters[0][5], Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(parameters[0][4], Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(parameters[0][3], Eigen::Vector3f::UnitX())) * cp_ + Eigen::Vector3f(parameters[0][0], parameters[0][1], parameters[0][2]);
+  Eigen::Vector3d lp = (Eigen::AngleAxisd(parameters[0][5], Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(parameters[0][4], Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(parameters[0][3], Eigen::Vector3d::UnitX())) * cp_ + Eigen::Vector3d(parameters[0][0], parameters[0][1], parameters[0][2]);
   double k = std::sqrt(std::pow(lpj_.x() - lpl_.x(), 2) + std::pow(lpj_.y() - lpl_.y(), 2) + std::pow(lpj_.z() - lpl_.z(), 2));
   double a = (lp.y() - lpj_.y()) * (lp.z() - lpl_.z()) - (lp.z() - lpj_.z()) * (lp.y() - lpl_.y());
   double b = (lp.z() - lpj_.z()) * (lp.x() - lpl_.x()) - (lp.x() - lpj_.x()) * (lp.z() - lpl_.z());
@@ -821,7 +821,7 @@ bool LaserOdometry::CornerCostFunction::Evaluate(double const *const *parameters
 
 bool LaserOdometry::SurfCostFunction::Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
 {
-  Eigen::Vector3f lp = (Eigen::AngleAxisf(parameters[0][5], Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(parameters[0][4], Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(parameters[0][3], Eigen::Vector3f::UnitX())) * cp_ + Eigen::Vector3f(parameters[0][0], parameters[0][1], parameters[0][2]);
+  Eigen::Vector3d lp = (Eigen::AngleAxisd(parameters[0][5], Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(parameters[0][4], Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(parameters[0][3], Eigen::Vector3d::UnitX())) * cp_ + Eigen::Vector3d(parameters[0][0], parameters[0][1], parameters[0][2]);
   double a = (lpj_.y() - lpl_.y()) * (lpj_.z() - lpm_.z()) - (lpj_.z() - lpl_.z()) * (lpj_.y() - lpm_.y());
   double b = (lpj_.z() - lpl_.z()) * (lpj_.x() - lpm_.x()) - (lpj_.x() - lpl_.x()) * (lpj_.z() - lpm_.z());
   double c = (lpj_.x() - lpl_.x()) * (lpj_.y() - lpm_.y()) - (lpj_.y() - lpl_.y()) * (lpj_.x() - lpm_.x());
