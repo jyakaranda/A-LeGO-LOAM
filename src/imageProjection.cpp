@@ -54,6 +54,9 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
   pcl::fromROSMsg(*msg, *cloud_in);
   // ROS_INFO("cloud_in size: %d", cloud_in->points.size());
 
+  std::vector<int> indices;
+  pcl::removeNaNFromPointCloud(*cloud_in, *cloud_in, indices);
+
   int cloud_size = cloud_in->points.size();
   seg_info_msg_->startOrientation = -atan2(cloud_in->points[0].y, cloud_in->points[0].x);
   seg_info_msg_->endOrientation = -atan2(cloud_in->points[cloud_size - 1].y, cloud_in->points[cloud_size - 1].x) + 2 * M_PI;
@@ -168,7 +171,7 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
           }
           continue;
         }
-        if (ground_mat_(i, j) == 1)
+        else if (ground_mat_(i, j) == 1)
         {
           if (j % 5 != 0 && j > 4 && j < Horizon_SCAN - 5)
           {

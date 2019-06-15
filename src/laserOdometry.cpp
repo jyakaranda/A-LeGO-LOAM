@@ -106,7 +106,7 @@ void LaserOdometry::mainLoop()
       TicToc t_adj;
       PointCloudT::Ptr seg_cloud(new PointCloudT());
       pcl::fromROSMsg(*seg_cloud_buf_.front(), *seg_cloud);
-      adjustDistortion(seg_cloud, t1);
+      // adjustDistortion(seg_cloud, t1);
       NODELET_INFO("adjustDistortion %.3f ms", t_adj.toc());
 
       // step2: calculateSmoothness
@@ -270,7 +270,7 @@ void LaserOdometry::mainLoop()
 
         PointCloudT::Ptr less_flat_scan_ds(new PointCloudT);
         pcl::VoxelGrid<PointT> ds;
-        ds.setLeafSize(0.2, 0.2, 0.2);
+        ds.setLeafSize(0.4, 0.4, 0.4);
         ds.setInputCloud(less_flat_scan);
         ds.filter(*less_flat_scan_ds);
         *less_flat += *less_flat_scan_ds;
@@ -331,7 +331,7 @@ void LaserOdometry::mainLoop()
               int closest_scan = int(corner_last_->points[closest_idx].intensity);
               float point_dist, min_point_dist2 = nearest_feature_dist;
               // lego 这里 k 的范围写的不对
-              for (int k = closest_scan + 1; k < corner_last_->points.size(); ++k)
+              for (int k = closest_idx + 1; k < corner_last_->points.size(); ++k)
               {
                 if (int(corner_last_->points[k].intensity) > closest_scan + 2)
                 {
@@ -347,9 +347,9 @@ void LaserOdometry::mainLoop()
                   }
                 }
               }
-              for (int k = closest_scan - 1; k >= 0; --k)
+              for (int k = closest_idx - 1; k >= 0; --k)
               {
-                if (int(corner_last_->points[k].intensity) < closest_scan - 2.5)
+                if (int(corner_last_->points[k].intensity) < closest_scan - 2)
                 {
                   break;
                 }
@@ -466,7 +466,7 @@ void LaserOdometry::mainLoop()
           ceres::Solver::Summary summary;
           ceres::Solve(options, &problem, &summary);
           NODELET_INFO("solver time %f ms \n", t_solver.toc());
-          NODELET_INFO_STREAM(summary.FullReport());
+          NODELET_INFO_STREAM(summary.BriefReport());
         }
         Eigen::Vector3f t_last_cur(params_[0], params_[1], params_[2]);
         Eigen::Matrix3f r_last_cur = (Eigen::AngleAxisf(params_[5], Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(params_[4], Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(params_[3], Eigen::Vector3f::UnitX())).toRotationMatrix();
@@ -503,9 +503,11 @@ void LaserOdometry::mainLoop()
         kd_corner_last_->setInputCloud(corner_last_);
       }
 
+      m_buf_.lock();
       seg_cloud_buf_.pop();
       seg_info_buf_.pop();
       outlier_buf_.pop();
+      m_buf_.unlock();
     }
   }
 }
@@ -529,7 +531,7 @@ void LaserOdometry::adjustDistortion(PointCloudT::Ptr cloud, double scan_time)
   int ori_diff = end_ori - start_ori;
   if (ori_diff <= 0)
   {
-    NODELET_WARN("ori_diff <= 0");
+    NODELET_WARN("ori_diff <= 0, %d", ori_diff);
     ori_diff = Horizon_SCAN;
   }
   Eigen::Vector3f rpy_start, shift_start, velo_start, rpy_cur, shift_cur, velo_cur;
@@ -684,11 +686,11 @@ void LaserOdometry::adjustDistortion(PointCloudT::Ptr cloud, double scan_time)
 
 void LaserOdometry::transformToStart(const PointT &pi, PointT &po)
 {
-  float s = 1;
-  Eigen::Matrix3f r_point_last = (Eigen::AngleAxisf(params_[5] * s, Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(params_[4] * s, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(params_[3] * s, Eigen::Vector3f::UnitX())).toRotationMatrix();
-  Eigen::Vector3f t_point_last(params_[0] * s, params_[1] * s, params_[2] * s);
-  Eigen::Vector3f point(pi.x, pi.y, pi.z);
-  Eigen::Vector3f un_point = r_point_last * point + t_point_last;
+  double s = 1;
+  Eigen::Matrix3d r_point_last = (Eigen::AngleAxisd(params_[5] * s, Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(params_[4] * s, Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(params_[3] * s, Eigen::Vector3d::UnitX())).toRotationMatrix();
+  Eigen::Vector3d t_point_last(params_[0] * s, params_[1] * s, params_[2] * s);
+  Eigen::Vector3d point(pi.x, pi.y, pi.z);
+  Eigen::Vector3d un_point = r_point_last * point + t_point_last;
 
   po.x = un_point.x();
   po.y = un_point.y();
@@ -717,8 +719,7 @@ void LaserOdometry::outlierHandler(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 void LaserOdometry::imuHandler(const sensor_msgs::ImuConstPtr &msg)
 {
-  imu_buf_.push(msg);
-
+  // imu_buf_.push(msg);
   double roll, pitch, yaw;
   tf::Quaternion ori;
   tf::quaternionMsgToTF(msg->orientation, ori);
@@ -728,6 +729,10 @@ void LaserOdometry::imuHandler(const sensor_msgs::ImuConstPtr &msg)
   float acc_z = msg->linear_acceleration.z - 9.81 * cos(pitch) * cos(roll);
 
   imu_ptr_last_ = (imu_ptr_last_ + 1) % imu_queue_length;
+  if ((imu_ptr_last_ + 1) % imu_queue_length == imu_ptr_front_)
+  {
+    imu_ptr_front_ = (imu_ptr_front_ + 1) % imu_queue_length;
+  }
 
   imu_time_[imu_ptr_last_] = msg->header.stamp.toSec();
   imu_roll_[imu_ptr_last_] = roll;
@@ -756,7 +761,7 @@ void LaserOdometry::imuHandler(const sensor_msgs::ImuConstPtr &msg)
 }
 void LaserOdometry::odomHandler(const nav_msgs::OdometryConstPtr &msg)
 {
-  odom_buf_.push(msg);
+  // odom_buf_.push(msg);
 
   double roll, pitch, yaw;
   tf::Quaternion ori;
@@ -811,9 +816,9 @@ bool LaserOdometry::CornerCostFunction::Evaluate(double const *const *parameters
     jacobians[0][3] = (dm_dx * dx_dr + dm_dy * dy_dr + dm_dz * dz_dr) / k;
     jacobians[0][4] = (dm_dx * dx_dp + dm_dy * dy_dp + dm_dz * dz_dp) / k;
     jacobians[0][5] = (dm_dx * dx_dy + dm_dy * dy_dy + dm_dz * dz_dy) / k;
-    printf("lp: %.3f, %.3f, %.3f; lpj: %.3f, %.3f, %.3f; lpl: %.3f, %.3f, %.3f", lp.x(), lp.y(), lp.z(), lpj_.x(), lpj_.y(), lpj_.z(), lpl_.x(), lpl_.y(), lpl_.z());
-    printf("residual: %.3f\n", residuals[0]);
-    printf("J: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f\n", jacobians[0][0], jacobians[0][1], jacobians[0][2], jacobians[0][3], jacobians[0][4], jacobians[0][5]);
+    // printf("lp: %.3f, %.3f, %.3f; lpj: %.3f, %.3f, %.3f; lpl: %.3f, %.3f, %.3f", lp.x(), lp.y(), lp.z(), lpj_.x(), lpj_.y(), lpj_.z(), lpl_.x(), lpl_.y(), lpl_.z());
+    // printf("residual: %.3f\n", residuals[0]);
+    // printf("J: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f\n", jacobians[0][0], jacobians[0][1], jacobians[0][2], jacobians[0][3], jacobians[0][4], jacobians[0][5]);
   }
 
   return true;

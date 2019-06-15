@@ -68,7 +68,7 @@ const bool use_odom = false;
 const int imu_queue_length = 1000;
 const int odom_queue_length = 1000;
 
-const float nearest_feature_dist = 25.; // sqaured, 对应 5m
+const double nearest_feature_dist = 25.; // sqaured, 对应 5m
 
 class TicToc
 {

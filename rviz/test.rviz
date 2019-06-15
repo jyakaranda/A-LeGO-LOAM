@@ -5,7 +5,6 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /Path1/Status1
       Splitter Ratio: 0.5
     Tree Height: 773
   - Class: rviz/Selection
@@ -26,7 +25,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: less_sharp
+    SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -384,16 +383,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 34.9196854
+      Distance: 58.8848457
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 2.99865675
-        Y: 0.601871133
-        Z: -18.2644367
+        X: 0.156117886
+        Y: -0.169811726
+        Z: -2.02614546
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
@@ -402,7 +401,7 @@ Visualization Manager:
       Pitch: 1.56979632
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.73027897
+      Yaw: 1.57027805
     Saved: ~
 Window Geometry:
   Displays:
