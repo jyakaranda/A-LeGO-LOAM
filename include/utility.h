@@ -297,7 +297,8 @@ public:
                                                          negative_OA_dot_norm(negative_OA_dot_norm_) {}
   virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const override
   {
-    residuals[0] = curr_point.dot(plane_unit_norm) + negative_OA_dot_norm;
+    Eigen::Vector3d lp = (Eigen::AngleAxisd(parameters[0][5], Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(parameters[0][4], Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(parameters[0][3], Eigen::Vector3d::UnitX())) * curr_point + Eigen::Vector3d(parameters[0][0], parameters[0][1], parameters[0][2]);
+    residuals[0] = lp.dot(plane_unit_norm) + negative_OA_dot_norm;
     Eigen::Vector3d df_dxyz = plane_unit_norm;
     if (residuals[0] < 0.)
     {

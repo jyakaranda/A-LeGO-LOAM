@@ -75,7 +75,7 @@ void LaserMapping::onInit()
   latest_keyframe_.reset(new PointCloudT);
   near_history_keyframes_.reset(new PointCloudT);
   history_search_radius_ = 20.;
-  history_search_num_ = 40;
+  history_search_num_ = 25;
   history_fitness_score_ = 0.4;
   loop_closure_enabled_ = false;
 
@@ -110,6 +110,7 @@ void LaserMapping::mainLoop()
       static int frame_cnt = 0;
       if (frame_cnt % 5 == 0)
       {
+        std::lock_guard<std::mutex> lock(mtx_);
         transformAssociateToMap();
         extractSurroundingKeyFrames();
         downsampleCurrentScan();
@@ -158,6 +159,27 @@ void LaserMapping::laserOdomHandler(const nav_msgs::OdometryConstPtr &msg)
   q_odom2laser_.x() = msg->pose.pose.orientation.x;
   q_odom2laser_.y() = msg->pose.pose.orientation.y;
   q_odom2laser_.z() = msg->pose.pose.orientation.z;
+  t_map2laser_ = q_map2odom_ * t_odom2laser_ + t_map2odom_;
+  q_map2laser_ = q_map2odom_ * q_odom2laser_;
+  if (pub_odom_aft_mapped_.getNumSubscribers() > 0)
+  {
+    nav_msgs::OdometryPtr msg(new nav_msgs::Odometry);
+    msg->header.stamp.fromSec(time_laser_odom_);
+    msg->header.frame_id = "map";
+    msg->child_frame_id = "/laser";
+    msg->pose.pose.position.x = t_map2laser_.x();
+    msg->pose.pose.position.y = t_map2laser_.y();
+    msg->pose.pose.position.z = t_map2laser_.z();
+    msg->pose.pose.orientation.w = q_map2laser_.w();
+    msg->pose.pose.orientation.x = q_map2laser_.x();
+    msg->pose.pose.orientation.y = q_map2laser_.y();
+    msg->pose.pose.orientation.z = q_map2laser_.z();
+    pub_odom_aft_mapped_.publish(msg);
+  }
+  tf::Transform tf_m2o;
+  tf_m2o.setOrigin(tf::Vector3(t_map2odom_.x(), t_map2odom_.y(), t_map2odom_.z()));
+  tf_m2o.setRotation(tf::Quaternion(q_map2odom_.x(), q_map2odom_.y(), q_map2odom_.z(), q_map2odom_.w()));
+  tf_broadcaster_.sendTransform(tf::StampedTransform(tf_m2o, ros::Time::now(), "map", "/odom"));
 }
 
 void LaserMapping::transformAssociateToMap()
@@ -334,6 +356,8 @@ void LaserMapping::scan2MapOptimization()
     // problem.AddParameterBlock(parameters, 4, q_parameterization);
     problem.AddParameterBlock(params_, 6);
 
+    int corner_correspondace = 0, surf_correnspondance = 0;
+    int test_p = 0;
     for (int i = 0; i < laser_corner_ds_->size(); ++i)
     {
       PointT point_sel;
@@ -373,9 +397,13 @@ void LaserMapping::scan2MapOptimization()
           Eigen::Vector3d lpl = -0.1 * unit_direction + point_on_line;
           problem.AddResidualBlock(new LidarEdgeCostFunction(cp, lpj, lpl),
                                    loss_function, params_);
+          ++corner_correspondace;
+        } else{
+          ++test_p;
         }
       }
     }
+    NODELET_INFO("test_p: %d", test_p);
     for (int i = 0; i < laser_surf_total_ds_->size(); ++i)
     {
       PointT point_sel;
@@ -416,11 +444,14 @@ void LaserMapping::scan2MapOptimization()
           Eigen::Vector3d cp(laser_surf_total_ds_->points[i].x, laser_surf_total_ds_->points[i].y, laser_surf_total_ds_->points[i].z);
           // problem.AddResidualBlock(new LidarPlaneCostFunction(cp, norm, negative_OA_dot_norm),
           //                          loss_function, params_);
+          // TODO: 先解决 corner 数量过少的问题，少了十倍
+          ++surf_correnspondance;
         }
       }
     }
 
     NODELET_INFO("mapping data assosiation time %.3fms", t_data.toc());
+    NODELET_INFO("corner_correspondance: %d, surf_correspondance: %d", corner_correspondace, surf_correnspondance);
 
     TicToc t_solver;
     ceres::Solver::Options options;
@@ -504,9 +535,17 @@ bool LaserMapping::saveKeyFramesAndFactor()
   cout << "rotation " << latest_estimate.rotation().roll() << ", " << latest_estimate.rotation().pitch() << ", " << latest_estimate.rotation().yaw() << endl;
   cout << "params " << params_[3] << ", " << params_[4] << ", " << params_[5] << endl;
 
-  corner_frames_.push_back(laser_corner_ds_);
-  surf_frames_.push_back(laser_surf_ds_);
-  outlier_frames_.push_back(laser_outlier_ds_);
+  PointCloudT::Ptr this_corner_ds(new PointCloudT);
+  PointCloudT::Ptr this_surf_ds(new PointCloudT);
+  PointCloudT::Ptr this_outlier_ds(new PointCloudT);
+
+  pcl::copyPointCloud(*laser_corner_ds_, *this_corner_ds);
+  pcl::copyPointCloud(*laser_surf_ds_, *this_surf_ds);
+  pcl::copyPointCloud(*laser_outlier_ds_, *this_outlier_ds);
+
+  corner_frames_.push_back(this_corner_ds);
+  surf_frames_.push_back(this_surf_ds);
+  outlier_frames_.push_back(this_outlier_ds);
 
   return true;
 }
@@ -544,25 +583,6 @@ void LaserMapping::publish()
     msg->header.frame_id = "map";
     pub_keyposes_.publish(msg);
   }
-  if (pub_odom_aft_mapped_.getNumSubscribers() > 0)
-  {
-    nav_msgs::OdometryPtr msg(new nav_msgs::Odometry);
-    msg->header.stamp.fromSec(time_laser_odom_);
-    msg->header.frame_id = "map";
-    msg->child_frame_id = "/laser";
-    msg->pose.pose.position.x = t_map2laser_.x();
-    msg->pose.pose.position.y = t_map2laser_.y();
-    msg->pose.pose.position.z = t_map2laser_.z();
-    msg->pose.pose.orientation.w = q_map2laser_.w();
-    msg->pose.pose.orientation.x = q_map2laser_.x();
-    msg->pose.pose.orientation.y = q_map2laser_.y();
-    msg->pose.pose.orientation.z = q_map2laser_.z();
-    pub_odom_aft_mapped_.publish(msg);
-  }
-  tf::Transform tf_m2o;
-  tf_m2o.setOrigin(tf::Vector3(t_map2odom_.x(), t_map2odom_.y(), t_map2odom_.z()));
-  tf_m2o.setRotation(tf::Quaternion(q_map2odom_.x(), q_map2odom_.y(), q_map2odom_.z(), q_map2odom_.w()));
-  tf_broadcaster_.sendTransform(tf::StampedTransform(tf_m2o, ros::Time::now(), "map", "/odom"));
 }
 
 void LaserMapping::visualizeGlobalMapThread()
@@ -572,7 +592,6 @@ void LaserMapping::visualizeGlobalMapThread()
   {
     if (pub_cloud_surround_.getNumSubscribers() > 0)
     {
-
       sensor_msgs::PointCloud2Ptr msg(new sensor_msgs::PointCloud2);
       PointCloudT::Ptr pc_map(new PointCloudT);
       for (int i = 0; i < cloud_keyposes_3d_->size(); ++i)

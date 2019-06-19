@@ -190,8 +190,8 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
   }
   publish();
 
-  // ROS_INFO("segmented_cloud size: %d", segmented_cloud_->points.size());
-  // ROS_INFO("outlier_cloud size: %d", outlier_cloud_->points.size());
+  ROS_INFO("segmented_cloud size: %d", segmented_cloud_->points.size());
+  ROS_INFO("outlier_cloud size: %d", outlier_cloud_->points.size());
 
   segmented_cloud_->clear();
   outlier_cloud_->clear();

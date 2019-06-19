@@ -135,6 +135,7 @@ void LaserOdometry::mainLoop()
           if (depth1 - depth2 > 0.3)
           {
             cloud_neighbor_picked_[i - 5] = cloud_neighbor_picked_[i - 4] = cloud_neighbor_picked_[i - 3] = cloud_neighbor_picked_[i - 2] = cloud_neighbor_picked_[i - 1] = cloud_neighbor_picked_[i] = 1;
+            continue;
           }
           else if (depth2 - depth1 > 0.3)
           {
@@ -277,7 +278,7 @@ void LaserOdometry::mainLoop()
         ds.filter(*less_flat_scan_ds);
         *less_flat += *less_flat_scan_ds;
       }
-
+      NODELET_INFO("less_sharp size: %d, less_flat size: %d", less_sharp->size(), less_flat->size());
       NODELET_INFO("sort curvature value time: %.3f", t_sort);
       NODELET_INFO("feature prepare time: %.3f", t_pts.toc());
 
