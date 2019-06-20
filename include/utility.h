@@ -292,18 +292,15 @@ private:
 class LidarPlaneCostFunction : public ceres::SizedCostFunction<1, 6>
 {
 public:
-  LidarPlaneCostFunction(Eigen::Vector3d curr_point_, Eigen::Vector3d plane_unit_norm_,
-                         double negative_OA_dot_norm_) : curr_point(curr_point_), plane_unit_norm(plane_unit_norm_),
-                                                         negative_OA_dot_norm(negative_OA_dot_norm_) {}
+  LidarPlaneCostFunction(Eigen::Vector3d cp, Eigen::Vector3d plane_unit_norm,
+                         double negative_OA_dot_norm) : cp_(cp), plane_unit_norm_(plane_unit_norm),
+                                                        negative_OA_dot_norm_(negative_OA_dot_norm) {}
   virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const override
   {
-    Eigen::Vector3d lp = (Eigen::AngleAxisd(parameters[0][5], Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(parameters[0][4], Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(parameters[0][3], Eigen::Vector3d::UnitX())) * curr_point + Eigen::Vector3d(parameters[0][0], parameters[0][1], parameters[0][2]);
-    residuals[0] = lp.dot(plane_unit_norm) + negative_OA_dot_norm;
-    Eigen::Vector3d df_dxyz = plane_unit_norm;
-    if (residuals[0] < 0.)
-    {
-      df_dxyz *= -1.;
-    }
+    Eigen::Vector3d lp = (Eigen::AngleAxisd(parameters[0][5], Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(parameters[0][4], Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(parameters[0][3], Eigen::Vector3d::UnitX())) * cp_ + Eigen::Vector3d(parameters[0][0], parameters[0][1], parameters[0][2]);
+    residuals[0] = plane_unit_norm_.dot(lp) + negative_OA_dot_norm_;
+    Eigen::Vector3d df_dxyz = plane_unit_norm_;
+
     double sr = std::sin(parameters[0][3]);
     double cr = std::cos(parameters[0][3]);
     double sp = std::sin(parameters[0][4]);
@@ -311,16 +308,16 @@ public:
     double sy = std::sin(parameters[0][5]);
     double cy = std::cos(parameters[0][5]);
 
-    double dx_dr = (cy * sp * cr + sr * sy) * curr_point.y() + (sy * cr - cy * sr * sp) * curr_point.z();
-    double dy_dr = (-cy * sr + sy * sp * cr) * curr_point.y() + (-sr * sy * sp - cy * cr) * curr_point.z();
-    double dz_dr = cp * cr * curr_point.y() - cp * sr * curr_point.z();
+    double dx_dr = (cy * sp * cr + sr * sy) * cp_.y() + (sy * cr - cy * sr * sp) * cp_.z();
+    double dy_dr = (-cy * sr + sy * sp * cr) * cp_.y() + (-sr * sy * sp - cy * cr) * cp_.z();
+    double dz_dr = cp * cr * cp_.y() - cp * sr * cp_.z();
 
-    double dx_dp = -cy * sp * curr_point.x() + cy * cp * sr * curr_point.y() + cy * cr * cp * curr_point.z();
-    double dy_dp = -sp * sy * curr_point.x() + sy * cp * sr * curr_point.y() + cr * sr * cp * curr_point.z();
-    double dz_dp = -cp * curr_point.x() - sp * sr * curr_point.y() - sp * cr * curr_point.z();
+    double dx_dp = -cy * sp * cp_.x() + cy * cp * sr * cp_.y() + cy * cr * cp * cp_.z();
+    double dy_dp = -sp * sy * cp_.x() + sy * cp * sr * cp_.y() + cr * sr * cp * cp_.z();
+    double dz_dp = -cp * cp_.x() - sp * sr * cp_.y() - sp * cr * cp_.z();
 
-    double dx_dy = -sy * cp * curr_point.x() - (sy * sp * sr + cr * cy) * curr_point.y() + (cy * sr - sy * cr * sp) * curr_point.z();
-    double dy_dy = cp * cy * curr_point.x() + (-sy * cr + cy * sp * sr) * curr_point.y() + (cy * cr * sp + sy * sr) * curr_point.z();
+    double dx_dy = -sy * cp * cp_.x() - (sy * sp * sr + cr * cy) * cp_.y() + (cy * sr - sy * cr * sp) * cp_.z();
+    double dy_dy = cp * cy * cp_.x() + (-sy * cr + cy * sp * sr) * cp_.y() + (cy * cr * sp + sy * sr) * cp_.z();
     double dz_dy = 0.;
 
     if (jacobians && jacobians[0])
@@ -337,9 +334,9 @@ public:
   }
 
 private:
-  Eigen::Vector3d curr_point;
-  Eigen::Vector3d plane_unit_norm;
-  double negative_OA_dot_norm;
+  Eigen::Vector3d cp_;
+  Eigen::Vector3d plane_unit_norm_;
+  double negative_OA_dot_norm_;
 };
 
 #endif

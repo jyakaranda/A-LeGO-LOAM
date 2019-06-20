@@ -69,7 +69,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 15.1993999
@@ -86,7 +86,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -99,7 +99,7 @@ Visualization Manager:
       Color: 255; 0; 0
       Color Transformer: FlatColor
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 255
@@ -116,7 +116,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rviz/Group
       Displays:
         - Alpha: 1
@@ -164,9 +164,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 15.1737003
+          Max Intensity: 15.0909996
           Min Color: 0; 0; 0
-          Min Intensity: 0
+          Min Intensity: 9.99999975e-05
           Name: segmented
           Position Transformer: XYZ
           Queue Size: 10
@@ -333,7 +333,41 @@ Visualization Manager:
           Use Fixed Frame: true
           Use rainbow: true
           Value: false
-      Enabled: false
+        - Angle Tolerance: 0.100000001
+          Class: rviz/Odometry
+          Covariance:
+            Orientation:
+              Alpha: 0.5
+              Color: 255; 255; 127
+              Color Style: Unique
+              Frame: Local
+              Offset: 1
+              Scale: 1
+              Value: true
+            Position:
+              Alpha: 0.300000012
+              Color: 204; 51; 204
+              Scale: 1
+              Value: true
+            Value: true
+          Enabled: true
+          Keep: 2000
+          Name: odom
+          Position Tolerance: 0.100000001
+          Shape:
+            Alpha: 1
+            Axes Length: 1
+            Axes Radius: 0.100000001
+            Color: 255; 25; 0
+            Head Length: 0.300000012
+            Head Radius: 0.100000001
+            Shaft Length: 1
+            Shaft Radius: 0.0500000007
+            Value: Arrow
+          Topic: /odom/lidar
+          Unreliable: false
+          Value: true
+      Enabled: true
       Name: LaserOdometry
     - Class: rviz/Group
       Displays:
@@ -352,9 +386,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 15
+          Max Intensity: 53.0999985
           Min Color: 0; 0; 0
-          Min Intensity: 0
+          Min Intensity: 0.100000001
           Name: keyposes
           Position Transformer: XYZ
           Queue Size: 10
@@ -377,12 +411,12 @@ Visualization Manager:
           Channel Name: intensity
           Class: rviz/PointCloud2
           Color: 255; 255; 255
-          Color Transformer: Intensity
+          Color Transformer: FlatColor
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 15.1990004
+          Max Intensity: 15.1995001
           Min Color: 0; 0; 0
           Min Intensity: 0.00300000003
           Name: laser_cloud_surround
@@ -390,13 +424,73 @@ Visualization Manager:
           Queue Size: 10
           Selectable: true
           Size (Pixels): 3
-          Size (m): 0.100000001
+          Size (m): 0.0500000007
           Style: Flat Squares
           Topic: /laser_cloud_surround
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: false
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 15.1308002
+          Min Color: 0; 0; 0
+          Min Intensity: 0.00350000034
+          Name: surf_last
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.100000001
+          Style: Flat Squares
+          Topic: /surf_last
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: false
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: false
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 15.1164999
+          Min Color: 0; 0; 0
+          Min Intensity: 0.163200006
+          Name: corner_last
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.100000001
+          Style: Flat Squares
+          Topic: /corner_last
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: false
         - Angle Tolerance: 0.100000001
           Class: rviz/Odometry
           Covariance:
@@ -461,11 +555,21 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        aft_mapped:
+          Value: true
+        base_link:
+          Value: true
+        camera_init:
+          Value: true
+        imu_link:
+          Value: true
         laser:
           Value: true
         map:
           Value: true
         odom:
+          Value: true
+        wheel_rr:
           Value: true
       Marker Scale: 5
       Name: TF
@@ -473,10 +577,9 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        map:
-          odom:
-            laser:
-              {}
+        odom:
+          laser:
+            {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -494,17 +597,17 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 15.1450996
+      Max Intensity: 15.1899996
       Min Color: 0; 0; 0
-      Min Intensity: 0.137099996
-      Name: corner_last
+      Min Intensity: 0.00350000011
+      Name: recent_keyframes
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.100000001
       Style: Flat Squares
-      Topic: /corner_last
+      Topic: /recent_keyframes
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -524,17 +627,17 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 15.1552505
+      Max Intensity: 15.1887503
       Min Color: 0; 0; 0
       Min Intensity: 0.00350000011
-      Name: surf_last
+      Name: icp_keyframe
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.100000001
       Style: Flat Squares
-      Topic: /surf_last
+      Topic: /icp_keyframes
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -543,7 +646,7 @@ Visualization Manager:
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: map
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -564,16 +667,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 127.153755
+      Distance: 69.0292969
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -6.3253355
-        Y: -9.09177494
-        Z: -21.3263931
+        X: 1.78586102
+        Y: 1.83606708
+        Z: -5.89701653
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
@@ -582,7 +685,7 @@ Visualization Manager:
       Pitch: 1.56979632
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.57708097
+      Yaw: 1.53705645
     Saved: ~
 Window Geometry:
   Displays:

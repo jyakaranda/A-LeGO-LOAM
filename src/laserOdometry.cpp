@@ -31,6 +31,11 @@ void LaserOdometry::onInit()
   imu_shift_y_.fill(0);
   imu_shift_z_.fill(0);
 
+  cloud_curvature_.fill(0);
+  cloud_neighbor_picked_.fill(false);
+  cloud_label_.fill(0);
+  cloud_sort_idx_.fill(0);
+
   system_initialized_ = false;
   surf_last_.reset(new PointCloudT);
   corner_last_.reset(new PointCloudT);
@@ -118,7 +123,7 @@ void LaserOdometry::mainLoop()
       for (int i = 5; i < cloud_size - 5; ++i)
       {
         float diff_range = seg_info->segmentedCloudRange[i - 5] + seg_info->segmentedCloudRange[i - 4] + seg_info->segmentedCloudRange[i - 3] + seg_info->segmentedCloudRange[i - 2] + seg_info->segmentedCloudRange[i - 1] - seg_info->segmentedCloudRange[i] * 10 + seg_info->segmentedCloudRange[i + 1] + seg_info->segmentedCloudRange[i + 2] + seg_info->segmentedCloudRange[i + 3] + seg_info->segmentedCloudRange[i + 4] + seg_info->segmentedCloudRange[i + 5];
-        cloud_curvature_[i] = diff_range * diff_range;
+        cloud_curvature_[i] = diff_range * diff_range / seg_info->segmentedCloudRange[i];
         cloud_neighbor_picked_[i] = 0;
         cloud_label_[i] = 0;
         cloud_sort_idx_[i] = i;
@@ -135,13 +140,13 @@ void LaserOdometry::mainLoop()
           // TODO: 可以调下参数
           if (depth1 - depth2 > 1.0)
           {
-            cloud_neighbor_picked_[i - 5] = cloud_neighbor_picked_[i - 4] = cloud_neighbor_picked_[i - 3] = cloud_neighbor_picked_[i - 2] = cloud_neighbor_picked_[i - 1] = cloud_neighbor_picked_[i] = 1;
+            cloud_neighbor_picked_[i - 5] = cloud_neighbor_picked_[i - 4] = cloud_neighbor_picked_[i - 3] = cloud_neighbor_picked_[i - 2] = cloud_neighbor_picked_[i - 1] = cloud_neighbor_picked_[i] = true;
             occ1 += 6;
             continue;
           }
           else if (depth2 - depth1 > 1.0)
           {
-            cloud_neighbor_picked_[i + 1] = cloud_neighbor_picked_[i + 2] = cloud_neighbor_picked_[i + 3] = cloud_neighbor_picked_[i + 4] = cloud_neighbor_picked_[i + 5] = 1;
+            cloud_neighbor_picked_[i + 1] = cloud_neighbor_picked_[i + 2] = cloud_neighbor_picked_[i + 3] = cloud_neighbor_picked_[i + 4] = cloud_neighbor_picked_[i + 5] = true;
             occ2 += 5;
           }
         }
@@ -149,7 +154,7 @@ void LaserOdometry::mainLoop()
         float diff2 = abs(depth2 - depth1);
         if (diff1 > 0.02 * seg_info->segmentedCloudRange[i] && diff2 > 0.02 * seg_info->segmentedCloudRange[i])
         {
-          cloud_neighbor_picked_[i] = 1;
+          cloud_neighbor_picked_[i] = true;
           ++occ3;
         }
       }
@@ -173,14 +178,14 @@ void LaserOdometry::mainLoop()
           int sp = (seg_info->startRingIndex[i] * (6 - j) + seg_info->endRingIndex[i] * j) / 6;
           int ep = (seg_info->startRingIndex[i] * (5 - j) + seg_info->endRingIndex[i] * (j + 1)) / 6 - 1;
           TicToc t_tmp;
-          std::sort(cloud_sort_idx_.begin() + sp, cloud_sort_idx_.begin() + ep + 1, [this](int i, int j) { return cloud_curvature_[i] < cloud_curvature_[j]; });
+          std::sort(cloud_sort_idx_.begin() + sp, cloud_sort_idx_.begin() + ep + 1, [this](int a, int b) { return cloud_curvature_[a] < cloud_curvature_[b]; });
           t_sort += t_tmp.toc();
 
           int picked_num = 0;
           for (int k = ep; k >= sp; --k)
           {
             int idx = cloud_sort_idx_[k];
-            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] > 0.1 && seg_info->segmentedCloudGroundFlag[idx] == false)
+            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] > 0.05 && seg_info->segmentedCloudGroundFlag[idx] == false)
             {
               ++picked_num;
               cloud_neighbor_picked_[idx] = 1;
@@ -230,7 +235,7 @@ void LaserOdometry::mainLoop()
           for (int k = sp; k <= ep; ++k)
           {
             int idx = cloud_sort_idx_[k];
-            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] < 0.1 && seg_info->segmentedCloudGroundFlag[idx] == true)
+            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] < 0.05 && seg_info->segmentedCloudGroundFlag[idx] == true)
             {
               cloud_label_[idx] = -1;
               flat->push_back(seg_cloud->points[idx]);
@@ -261,7 +266,7 @@ void LaserOdometry::mainLoop()
                 }
                 else
                 {
-                  cloud_neighbor_picked_[idx + 1] = 1;
+                  cloud_neighbor_picked_[idx + l] = 1;
                 }
               }
             }
@@ -335,7 +340,7 @@ void LaserOdometry::mainLoop()
           {
             closest_idx = search_idx[0];
             float point_dist, min_dist2 = nearest_feature_dist, min_dist3 = nearest_feature_dist;
-            int closest_scan = (surf_last_->points[closest_idx].intensity);
+            int closest_scan = int(surf_last_->points[closest_idx].intensity);
             for (int k = closest_idx + 1; k < surf_last_->points.size(); ++k)
             {
               if (int(surf_last_->points[k].intensity) > closest_scan + 2)
@@ -343,7 +348,7 @@ void LaserOdometry::mainLoop()
                 break;
               }
               point_dist = pow(surf_last_->points[k].x - point_sel.x, 2) + pow(surf_last_->points[k].y - point_sel.y, 2) + pow(surf_last_->points[k].z - point_sel.z, 2);
-              if (int(surf_last_->points[k].intensity) <= closest_scan)
+              if (int(surf_last_->points[k].intensity) == closest_scan)
               {
                 if (point_dist < min_dist2)
                 {
@@ -367,7 +372,7 @@ void LaserOdometry::mainLoop()
                 break;
               }
               point_dist = pow(surf_last_->points[k].x - point_sel.x, 2) + pow(surf_last_->points[k].y - point_sel.y, 2) + pow(surf_last_->points[k].z - point_sel.z, 2);
-              if (int(surf_last_->points[k].intensity) >= closest_scan)
+              if (int(surf_last_->points[k].intensity) == closest_scan)
               {
                 if (point_dist < min_dist2)
                 {
@@ -392,8 +397,6 @@ void LaserOdometry::mainLoop()
               Eigen::Vector3d lpl(surf_last_->points[min_idx2].x, surf_last_->points[min_idx2].y, surf_last_->points[min_idx2].z);
               Eigen::Vector3d lpm(surf_last_->points[min_idx3].x, surf_last_->points[min_idx3].y, surf_last_->points[min_idx3].z);
               problem.AddResidualBlock(new SurfCostFunction(cp, lpj, lpl, lpm), loss_function, params_);
-              // ceres::CostFunction *cost_function = LidarPlaneFactor::Create(cp, lpj, lpl, lpm, 1);
-              // problem.AddResidualBlock(cost_function, loss_function, params_);
               ++surf_correspondance;
             }
           }
@@ -469,8 +472,6 @@ void LaserOdometry::mainLoop()
             Eigen::Vector3d lpl(corner_last_->points[min_idx2].x, corner_last_->points[min_idx2].y, corner_last_->points[min_idx2].z);
             problem.AddResidualBlock(new CornerCostFunction(cp, lpj, lpl),
                                      loss_function, params_);
-            // ceres::CostFunction *cost_function = LidarEdgeFactor::Create(cp, lpj, lpl, 1);
-            // problem.AddResidualBlock(cost_function, loss_function, params_);
             ++corner_correspondance;
           }
         }
@@ -497,6 +498,7 @@ void LaserOdometry::mainLoop()
         t_total += t_opt.toc();
         NODELET_INFO("opt time until now: %.3fms", t_total);
         Eigen::Vector3d t_last_cur(params_[0], params_[1], params_[2]);
+        // 没有使用 roll, pitch
         Eigen::Matrix3d r_last_cur = (Eigen::AngleAxisd(params_[5], Eigen::Vector3d::UnitZ())).toRotationMatrix();
         t_w_cur_ = t_w_cur_ + r_w_cur_ * t_last_cur;
         r_w_cur_ = r_w_cur_ * r_last_cur;
@@ -509,10 +511,10 @@ void LaserOdometry::mainLoop()
         laser_odometry->header.frame_id = "/odom";
         laser_odometry->child_frame_id = "/laser";
         laser_odometry->header.stamp = ros::Time().fromSec(t1);
-        laser_odometry->pose.pose.orientation.x = float(tmp_q.x());
-        laser_odometry->pose.pose.orientation.y = float(tmp_q.y());
-        laser_odometry->pose.pose.orientation.z = float(tmp_q.z());
-        laser_odometry->pose.pose.orientation.w = float(tmp_q.w());
+        laser_odometry->pose.pose.orientation.x = tmp_q.x();
+        laser_odometry->pose.pose.orientation.y = tmp_q.y();
+        laser_odometry->pose.pose.orientation.z = tmp_q.z();
+        laser_odometry->pose.pose.orientation.w = tmp_q.w();
         laser_odometry->pose.pose.position.x = t_w_cur_.x();
         laser_odometry->pose.pose.position.y = t_w_cur_.y();
         laser_odometry->pose.pose.position.z = t_w_cur_.z();
@@ -535,8 +537,7 @@ void LaserOdometry::mainLoop()
       pcl::toROSMsg(*corner_last_, *msg_corner_last);
       msg_surf_last->header.stamp.fromSec(t1);
       msg_surf_last->header.frame_id = "/laser";
-      msg_corner_last->header.stamp.fromSec(t1);
-      msg_corner_last->header.frame_id = "/laser";
+      msg_corner_last->header = msg_surf_last->header;
       pub_surf_last_.publish(msg_surf_last);
       pub_corner_last_.publish(msg_corner_last);
 
@@ -575,7 +576,6 @@ void LaserOdometry::adjustDistortion(PointCloudT::Ptr cloud, double scan_time)
   Eigen::Vector3f shift_from_start;
   Eigen::Matrix3f r_s_i, r_c;
   Eigen::Vector3f adjusted_p;
-  int ori_h;
 
   for (int i = 0; i < cloud_size; ++i)
   {
@@ -600,7 +600,7 @@ void LaserOdometry::adjustDistortion(PointCloudT::Ptr cloud, double scan_time)
         if (abs(cur_time - imu_time_[imu_ptr_front_]) > scan_period)
         {
           NODELET_WARN_COND(i < 5, "unsync imu and pc msg %d, %d, %.6f, %.6f", imu_ptr_front_, imu_ptr_last_, cur_time, imu_time_[imu_ptr_front_]);
-          continue;
+          return;
         }
 
         if (cur_time > imu_time_[imu_ptr_front_])
@@ -716,7 +716,7 @@ void LaserOdometry::adjustDistortion(PointCloudT::Ptr cloud, double scan_time)
     sensor_msgs::PointCloud2Ptr msg(new sensor_msgs::PointCloud2());
     pcl::toROSMsg(*cloud, *msg);
     msg->header.stamp.fromSec(scan_time);
-    msg->header.frame_id = "laser";
+    msg->header.frame_id = "/laser";
     pub_undistorted_pc_.publish(msg);
   }
 }

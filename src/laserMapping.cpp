@@ -375,7 +375,7 @@ void LaserMapping::scan2MapOptimization()
       if (point_dist_[4] < 1.0)
       {
         std::vector<Eigen::Vector3d> nearCorners;
-        Eigen::Vector3d center(0, 0, 0);
+        Eigen::Vector3d center(0., 0., 0.);
         for (int j = 0; j < 5; j++)
         {
           Eigen::Vector3d tmp(corner_from_map_ds_->points[point_idx_[j]].x,
@@ -429,7 +429,6 @@ void LaserMapping::scan2MapOptimization()
           matA0(j, 0) = surf_from_map_ds_->points[point_idx_[j]].x;
           matA0(j, 1) = surf_from_map_ds_->points[point_idx_[j]].y;
           matA0(j, 2) = surf_from_map_ds_->points[point_idx_[j]].z;
-          //printf(" pts %f %f %f ", matA0(j, 0), matA0(j, 1), matA0(j, 2));
         }
         // find the norm of plane
         Eigen::Vector3d norm = matA0.colPivHouseholderQr().solve(matB0);
@@ -453,8 +452,8 @@ void LaserMapping::scan2MapOptimization()
         if (planeValid)
         {
           Eigen::Vector3d cp(laser_surf_total_ds_->points[i].x, laser_surf_total_ds_->points[i].y, laser_surf_total_ds_->points[i].z);
-          // problem.AddResidualBlock(new LidarPlaneCostFunction(cp, norm, negative_OA_dot_norm),
-          //                          loss_function, params_);
+          problem.AddResidualBlock(new LidarPlaneCostFunction(cp, norm, negative_OA_dot_norm),
+                                   loss_function, params_);
           // TODO: 先解决 corner 数量过少的问题，少了十倍
           ++surf_correnspondance;
         }
@@ -528,7 +527,7 @@ bool LaserMapping::saveKeyFramesAndFactor()
   this_pose_6d.x = this_pose_3d.x = latest_estimate.translation().x();
   this_pose_6d.y = this_pose_3d.y = latest_estimate.translation().y();
   this_pose_6d.z = this_pose_3d.z = latest_estimate.translation().z();
-  this_pose_6d.intensity = this_pose_3d.intensity = cloud_keyposes_3d_->points.size();
+  this_pose_6d.intensity = this_pose_3d.intensity = cloud_keyposes_3d_->points.size() + 0.1;
   this_pose_6d.roll = latest_estimate.rotation().roll();
   this_pose_6d.pitch = latest_estimate.rotation().pitch();
   this_pose_6d.yaw = latest_estimate.rotation().yaw();
@@ -542,9 +541,6 @@ bool LaserMapping::saveKeyFramesAndFactor()
   params_[3] = this_pose_6d.roll;
   params_[4] = this_pose_6d.pitch;
   params_[5] = this_pose_6d.yaw;
-  cout << "this_pose_6d " << this_pose_6d.roll << ", " << this_pose_6d.pitch << ", " << this_pose_6d.yaw << endl;
-  cout << "rotation " << latest_estimate.rotation().roll() << ", " << latest_estimate.rotation().pitch() << ", " << latest_estimate.rotation().yaw() << endl;
-  cout << "params " << params_[3] << ", " << params_[4] << ", " << params_[5] << endl;
 
   PointCloudT::Ptr this_corner_ds(new PointCloudT);
   PointCloudT::Ptr this_surf_ds(new PointCloudT);
@@ -642,6 +638,7 @@ void LaserMapping::loopClosureThread()
   {
     performLoopClosure();
     duration.sleep();
+    ros::spinOnce();
   }
 }
 
@@ -667,7 +664,7 @@ void LaserMapping::performLoopClosure()
 
   TicToc t_icp;
 
-  pcl::IterativeClosestPoint<PointT, PointT, double> icp;
+  pcl::IterativeClosestPoint<PointT, PointT> icp;
   icp.setMaxCorrespondenceDistance(100);
   icp.setMaximumIterations(100);
   icp.setTransformationEpsilon(1e-6);
@@ -677,10 +674,10 @@ void LaserMapping::performLoopClosure()
   icp.setInputSource(latest_keyframe_);
   icp.setInputTarget(near_history_keyframes_);
   PointCloudT::Ptr unused_result(new PointCloudT());
-  Eigen::Matrix4d initial_guess(Eigen::Matrix4d::Identity());
-  initial_guess.block<3, 3>(0, 0) = (Eigen::AngleAxisd(cloud_keyposes_6d_->points[latest_history_frame_id_].yaw, Eigen::Vector3d::UnitZ()) *
-                                     Eigen::AngleAxisd(cloud_keyposes_6d_->points[latest_history_frame_id_].pitch, Eigen::Vector3d::UnitY()) *
-                                     Eigen::AngleAxisd(cloud_keyposes_6d_->points[latest_history_frame_id_].roll, Eigen::Vector3d::UnitX()))
+  Eigen::Matrix4f initial_guess(Eigen::Matrix4f::Identity());
+  initial_guess.block<3, 3>(0, 0) = (Eigen::AngleAxisf(cloud_keyposes_6d_->points[latest_history_frame_id_].yaw, Eigen::Vector3f::UnitZ()) *
+                                     Eigen::AngleAxisf(cloud_keyposes_6d_->points[latest_history_frame_id_].pitch, Eigen::Vector3f::UnitY()) *
+                                     Eigen::AngleAxisf(cloud_keyposes_6d_->points[latest_history_frame_id_].roll, Eigen::Vector3f::UnitX()))
                                         .toRotationMatrix();
   initial_guess(0, 3) = cloud_keyposes_6d_->points[latest_history_frame_id_].x;
   initial_guess(1, 3) = cloud_keyposes_6d_->points[latest_history_frame_id_].y;
@@ -689,8 +686,8 @@ void LaserMapping::performLoopClosure()
 
   bool has_converged = icp.hasConverged();
   double fitness_score = icp.getFitnessScore();
-  Eigen::Matrix4d correction_frame = icp.getFinalTransformation();
-  Eigen::Quaterniond tmp_q(correction_frame.block<3, 3>(0, 0));
+  Eigen::Matrix4f correction_frame = icp.getFinalTransformation();
+  Eigen::Quaternionf tmp_q(correction_frame.block<3, 3>(0, 0));
   double roll, pitch, yaw;
   tf::Matrix3x3(tf::Quaternion(tmp_q.x(), tmp_q.y(), tmp_q.z(), tmp_q.w())).getRPY(roll, pitch, yaw);
 
@@ -714,9 +711,9 @@ void LaserMapping::performLoopClosure()
     }
   }
 
-  Eigen::Matrix4d t_wrong = initial_guess;
-  Eigen::Matrix4d t_correct = correction_frame * t_wrong;
-  Eigen::Quaterniond r_correct(t_correct.block<3, 3>(0, 0));
+  Eigen::Matrix4f t_wrong = initial_guess;
+  Eigen::Matrix4f t_correct = correction_frame * t_wrong;
+  Eigen::Quaternionf r_correct(t_correct.block<3, 3>(0, 0));
   gtsam::Pose3 pose_from = gtsam::Pose3(Rot3::Quaternion(r_correct.w(), r_correct.x(), r_correct.y(), r_correct.z()),
                                         Point3(t_correct(0, 3), t_correct(1, 3), t_correct(2, 3)));
   gtsam::Pose3 pose_to = gtsam::Pose3(Rot3::RzRyRx(cloud_keyposes_6d_->points[closest_history_frame_id_].roll, cloud_keyposes_6d_->points[closest_history_frame_id_].pitch, cloud_keyposes_6d_->points[closest_history_frame_id_].yaw),
@@ -758,6 +755,10 @@ void LaserMapping::performLoopClosure()
  */
 bool LaserMapping::detectLoopClosure()
 {
+  if (cloud_keyposes_3d_->empty())
+  {
+    return false;
+  }
   latest_keyframe_->clear();
   near_history_keyframes_->clear();
 
