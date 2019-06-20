@@ -124,6 +124,7 @@ void LaserOdometry::mainLoop()
         cloud_sort_idx_[i] = i;
       }
       // step3: markOccludedPoints
+      int occ1 = 0, occ2 = 0, occ3 = 0;
       for (int i = 5; i < cloud_size - 5; ++i)
       {
         float depth1 = seg_info->segmentedCloudRange[i];
@@ -132,14 +133,16 @@ void LaserOdometry::mainLoop()
         if (col_diff < 10)
         {
           // TODO: 可以调下参数
-          if (depth1 - depth2 > 0.3)
+          if (depth1 - depth2 > 1.0)
           {
             cloud_neighbor_picked_[i - 5] = cloud_neighbor_picked_[i - 4] = cloud_neighbor_picked_[i - 3] = cloud_neighbor_picked_[i - 2] = cloud_neighbor_picked_[i - 1] = cloud_neighbor_picked_[i] = 1;
+            occ1 += 6;
             continue;
           }
-          else if (depth2 - depth1 > 0.3)
+          else if (depth2 - depth1 > 1.0)
           {
             cloud_neighbor_picked_[i + 1] = cloud_neighbor_picked_[i + 2] = cloud_neighbor_picked_[i + 3] = cloud_neighbor_picked_[i + 4] = cloud_neighbor_picked_[i + 5] = 1;
+            occ2 += 5;
           }
         }
         float diff1 = abs(seg_info->segmentedCloudRange[i - 1] - depth1);
@@ -147,9 +150,11 @@ void LaserOdometry::mainLoop()
         if (diff1 > 0.02 * seg_info->segmentedCloudRange[i] && diff2 > 0.02 * seg_info->segmentedCloudRange[i])
         {
           cloud_neighbor_picked_[i] = 1;
+          ++occ3;
         }
       }
       NODELET_INFO("calculateSmoothness and markOccluded %.3f ms", t_adj.toc());
+      NODELET_INFO("cloud_size: %d, occ1: %d, occ2: %d, occ3: %d", cloud_size, occ1, occ2, occ3);
 
       // step4: extractFeatures
       TicToc t_pts;

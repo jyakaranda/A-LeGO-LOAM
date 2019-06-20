@@ -35,11 +35,11 @@ void LaserMapping::onInit()
 
   new_laser_surf_ = new_laser_corner_ = new_laser_outlier_ = new_laser_corner_ = false;
 
-  ds_corner_.setLeafSize(0.2, 0.2, 0.2);
-  ds_surf_.setLeafSize(0.4, 0.4, 0.4);
-  ds_outlier_.setLeafSize(0.6, 0.6, 0.6);
+  ds_corner_.setLeafSize(0.4, 0.4, 0.4);
+  ds_surf_.setLeafSize(0.8, 0.8, 0.8);
+  ds_outlier_.setLeafSize(1.0, 1.0, 1.0);
   ds_keyposes_.setLeafSize(1.0, 1.0, 1.0);
-  ds_history_keyframes_.setLeafSize(0.4, 0.4, 0.4);
+  ds_history_keyframes_.setLeafSize(1.0, 1.0, 1.0);
 
   min_keyframe_dist_ = 1.0;
 
@@ -111,6 +111,7 @@ void LaserMapping::mainLoop()
       if (frame_cnt % 5 == 0)
       {
         std::lock_guard<std::mutex> lock(mtx_);
+        TicToc t_whole;
         transformAssociateToMap();
         extractSurroundingKeyFrames();
         downsampleCurrentScan();
@@ -119,6 +120,7 @@ void LaserMapping::mainLoop()
         saveKeyFramesAndFactor();
         correctPoses();
         publish();
+        NODELET_INFO("mapping whole time: %.3fms", t_whole.toc());
       }
       ++frame_cnt;
     }
@@ -192,6 +194,10 @@ void LaserMapping::extractSurroundingKeyFrames()
 {
   TicToc t_data;
   NODELET_INFO("extractSurroundingKeyFrames");
+  surf_from_map_->clear();
+  corner_from_map_->clear();
+  surf_from_map_ds_->clear();
+  corner_from_map_ds_->clear();
   if (cloud_keyposes_3d_->empty())
   {
     return;
@@ -305,11 +311,14 @@ void LaserMapping::extractSurroundingKeyFrames()
     }
   }
 
+  TicToc t_ds;
   ds_surf_.setInputCloud(surf_from_map_);
   ds_surf_.filter(*surf_from_map_ds_);
   ds_corner_.setInputCloud(corner_from_map_);
   ds_corner_.filter(*corner_from_map_ds_);
+  NODELET_INFO("before ds, surf points: %d, corner points: %d, time: %.3fms", surf_from_map_->size(), corner_from_map_->size());
   NODELET_INFO("surf points: %d, corner points: %d, time: %.3fms", surf_from_map_ds_->size(), corner_from_map_ds_->size(), t_data.toc());
+  NODELET_INFO("downsize time: %.3fms", t_ds.toc());
 }
 
 void LaserMapping::downsampleCurrentScan()
@@ -398,7 +407,9 @@ void LaserMapping::scan2MapOptimization()
           problem.AddResidualBlock(new LidarEdgeCostFunction(cp, lpj, lpl),
                                    loss_function, params_);
           ++corner_correspondace;
-        } else{
+        }
+        else
+        {
           ++test_p;
         }
       }
@@ -604,6 +615,17 @@ void LaserMapping::visualizeGlobalMapThread()
       msg->header.stamp.fromSec(time_laser_odom_);
       msg->header.frame_id = "map";
       pub_cloud_surround_.publish(msg);
+    }
+    if (pub_recent_keyframes_.getNumSubscribers() > 0)
+    {
+      sensor_msgs::PointCloud2Ptr msg(new sensor_msgs::PointCloud2);
+      PointCloudT::Ptr pc_map(new PointCloudT);
+      *pc_map += *corner_from_map_ds_;
+      *pc_map += *surf_from_map_ds_;
+      pcl::toROSMsg(*pc_map, *msg);
+      msg->header.stamp.fromSec(time_laser_odom_);
+      msg->header.frame_id = "map";
+      pub_recent_keyframes_.publish(msg);
     }
     rate.sleep();
   }
