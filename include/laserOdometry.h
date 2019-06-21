@@ -87,3 +87,5 @@ private:
   void odomHandler(const nav_msgs::OdometryConstPtr &msg);
 };
 } // namespace loam
+
+PLUGINLIB_EXPORT_CLASS(loam::LaserOdometry, nodelet::Nodelet)

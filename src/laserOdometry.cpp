@@ -1,7 +1,4 @@
-#include "utility.h"
 #include "laserOdometry.h"
-
-PLUGINLIB_EXPORT_CLASS(loam::LaserOdometry, nodelet::Nodelet);
 
 namespace loam
 {
@@ -93,6 +90,7 @@ void LaserOdometry::mainLoop()
       double t3 = outlier_buf_.front()->header.stamp.toSec();
       if (abs(t1 - t2) > 0.2 || abs(t1 - t3) > 0.2)
       {
+        m_buf_.lock();
         NODELET_WARN("unsync msg");
         while (!seg_cloud_buf_.empty())
         {
@@ -106,6 +104,7 @@ void LaserOdometry::mainLoop()
         {
           outlier_buf_.pop();
         }
+        m_buf_.unlock();
         continue;
       }
 
@@ -123,7 +122,7 @@ void LaserOdometry::mainLoop()
       for (int i = 5; i < cloud_size - 5; ++i)
       {
         float diff_range = seg_info->segmentedCloudRange[i - 5] + seg_info->segmentedCloudRange[i - 4] + seg_info->segmentedCloudRange[i - 3] + seg_info->segmentedCloudRange[i - 2] + seg_info->segmentedCloudRange[i - 1] - seg_info->segmentedCloudRange[i] * 10 + seg_info->segmentedCloudRange[i + 1] + seg_info->segmentedCloudRange[i + 2] + seg_info->segmentedCloudRange[i + 3] + seg_info->segmentedCloudRange[i + 4] + seg_info->segmentedCloudRange[i + 5];
-        cloud_curvature_[i] = diff_range * diff_range / seg_info->segmentedCloudRange[i];
+        cloud_curvature_[i] = diff_range * diff_range;
         cloud_neighbor_picked_[i] = 0;
         cloud_label_[i] = 0;
         cloud_sort_idx_[i] = i;
@@ -140,13 +139,13 @@ void LaserOdometry::mainLoop()
           // TODO: 可以调下参数
           if (depth1 - depth2 > 1.0)
           {
-            cloud_neighbor_picked_[i - 5] = cloud_neighbor_picked_[i - 4] = cloud_neighbor_picked_[i - 3] = cloud_neighbor_picked_[i - 2] = cloud_neighbor_picked_[i - 1] = cloud_neighbor_picked_[i] = true;
+            // cloud_neighbor_picked_[i - 5] = cloud_neighbor_picked_[i - 4] = cloud_neighbor_picked_[i - 3] = cloud_neighbor_picked_[i - 2] = cloud_neighbor_picked_[i - 1] = cloud_neighbor_picked_[i] = true;
             occ1 += 6;
             continue;
           }
           else if (depth2 - depth1 > 1.0)
           {
-            cloud_neighbor_picked_[i + 1] = cloud_neighbor_picked_[i + 2] = cloud_neighbor_picked_[i + 3] = cloud_neighbor_picked_[i + 4] = cloud_neighbor_picked_[i + 5] = true;
+            // cloud_neighbor_picked_[i + 1] = cloud_neighbor_picked_[i + 2] = cloud_neighbor_picked_[i + 3] = cloud_neighbor_picked_[i + 4] = cloud_neighbor_picked_[i + 5] = true;
             occ2 += 5;
           }
         }
@@ -177,6 +176,11 @@ void LaserOdometry::mainLoop()
         {
           int sp = (seg_info->startRingIndex[i] * (6 - j) + seg_info->endRingIndex[i] * j) / 6;
           int ep = (seg_info->startRingIndex[i] * (5 - j) + seg_info->endRingIndex[i] * (j + 1)) / 6 - 1;
+          if (sp >= ep)
+          {
+            NODELET_WARN("sp: %d, ep: %d, start: %d, end: %d", sp, ep, seg_info->startRingIndex[i], seg_info->endRingIndex[i]);
+            continue;
+          }
           TicToc t_tmp;
           std::sort(cloud_sort_idx_.begin() + sp, cloud_sort_idx_.begin() + ep + 1, [this](int a, int b) { return cloud_curvature_[a] < cloud_curvature_[b]; });
           t_sort += t_tmp.toc();
@@ -185,7 +189,7 @@ void LaserOdometry::mainLoop()
           for (int k = ep; k >= sp; --k)
           {
             int idx = cloud_sort_idx_[k];
-            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] > 0.05 && seg_info->segmentedCloudGroundFlag[idx] == false)
+            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] > 0.1 && seg_info->segmentedCloudGroundFlag[idx] == false)
             {
               ++picked_num;
               cloud_neighbor_picked_[idx] = 1;
@@ -235,7 +239,7 @@ void LaserOdometry::mainLoop()
           for (int k = sp; k <= ep; ++k)
           {
             int idx = cloud_sort_idx_[k];
-            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] < 0.05 && seg_info->segmentedCloudGroundFlag[idx] == true)
+            if (cloud_neighbor_picked_[idx] == 0 && cloud_curvature_[idx] < 0.1 && seg_info->segmentedCloudGroundFlag[idx] == true)
             {
               cloud_label_[idx] = -1;
               flat->push_back(seg_cloud->points[idx]);

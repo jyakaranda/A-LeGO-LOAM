@@ -47,9 +47,9 @@ using PointCloudT = pcl::PointCloud<PointT>;
 #define ANGLE2RAD(x) ((x) / 180.0 * M_PI)
 
 const int N_SCAN = 16;
-const float ang_res_x = 0.18; // 10Hz
+const float ang_res_x = 0.18; // 10Hz: 0.18, 5Hz: 0.09
 const float ang_res_y = 2.0;
-const float scan_period = 0.1; // 10Hz
+const float scan_period = 0.1; // 10Hz: 0.1, 5Hz: 0.2
 
 const int Horizon_SCAN = 360.0 / ang_res_x + 0.5;
 const float ang_bottom = 15.0;
@@ -66,7 +66,7 @@ const int seg_valid_line_num = 3;
 // (use_imu && use_odom) == false
 const bool use_imu = true;
 const bool use_odom = false;
-const int imu_queue_length = 1000;
+const int imu_queue_length = 200;
 const int odom_queue_length = 1000;
 
 const double nearest_feature_dist = 25.; // sqaured, 对应 5m

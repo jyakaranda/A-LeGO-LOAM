@@ -1,7 +1,5 @@
 #include "imageProjection.h"
 
-PLUGINLIB_EXPORT_CLASS(loam::ImageProjection, nodelet::Nodelet)
-
 namespace loam
 {
 
@@ -27,6 +25,10 @@ void ImageProjection::onInit()
   nan_p.intensity = -1;
   full_cloud_->points.resize(N_SCAN * Horizon_SCAN);
   std::fill(full_cloud_->points.begin(), full_cloud_->points.end(), nan_p);
+
+  range_mat_.resize(N_SCAN, Eigen::NoChange);
+  label_mat_.resize(N_SCAN, Eigen::NoChange);
+  ground_mat_.resize(N_SCAN, Eigen::NoChange);
 
   range_mat_.setConstant(std::numeric_limits<float>::max());
   label_mat_.setZero();

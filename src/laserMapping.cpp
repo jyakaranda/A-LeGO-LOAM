@@ -1,4 +1,3 @@
-#include "utility.h"
 #include "laserMapping.h"
 
 namespace loam
@@ -77,7 +76,7 @@ void LaserMapping::onInit()
   history_search_radius_ = 20.;
   history_search_num_ = 25;
   history_fitness_score_ = 0.4;
-  loop_closure_enabled_ = false;
+  loop_closure_enabled_ = true;
 
   pub_cloud_surround_ = nh_.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surround", 10);
   pub_odom_aft_mapped_ = nh_.advertise<nav_msgs::Odometry>("/odom_aft_mapped", 10);
@@ -108,17 +107,17 @@ void LaserMapping::mainLoop()
     {
       new_laser_surf_ = new_laser_corner_ = new_laser_outlier_ = new_laser_odom_ = false;
       static int frame_cnt = 0;
-      if (frame_cnt % 5 == 0)
+      if (frame_cnt % 2 == 0)
       {
         std::lock_guard<std::mutex> lock(mtx_);
         TicToc t_whole;
+        correctPoses();
         transformAssociateToMap();
         extractSurroundingKeyFrames();
         downsampleCurrentScan();
         scan2MapOptimization();
         transformUpdate();
         saveKeyFramesAndFactor();
-        correctPoses();
         publish();
         NODELET_INFO("mapping whole time: %.3fms", t_whole.toc());
       }
@@ -575,6 +574,8 @@ void LaserMapping::correctPoses()
       cloud_keyposes_6d_->points[i].pitch = isam_cur_estimate_.at<gtsam::Pose3>(i).rotation().pitch();
       cloud_keyposes_6d_->points[i].yaw = isam_cur_estimate_.at<gtsam::Pose3>(i).rotation().yaw();
     }
+    q_map2odom_ = correction_.block<3, 3>(0, 0) * q_map2odom_.toRotationMatrix();
+    t_map2odom_.matrix() = correction_.block<3, 3>(0, 0) * t_map2odom_.matrix() + correction_.block<3, 1>(0, 3);
 
     loop_closed_ = false;
   }
@@ -728,6 +729,7 @@ void LaserMapping::performLoopClosure()
   isam_->update(gtSAMgraph_);
   isam_->update();
   gtSAMgraph_.resize(0);
+  correction_ = correction_frame.cast<double>();
 
   std::cout << "-----------------------------------------------------------------" << std::endl;
   std::cout << "Time elapsed: " << t_icp.toc() << "ms" << std::endl;
@@ -775,7 +777,7 @@ bool LaserMapping::detectLoopClosure()
   closest_history_frame_id_ = -1;
   for (int i = 0; i < point_idx_.size(); ++i)
   {
-    if (cloud_keyposes_6d_->points[point_idx_[latest_history_frame_id_]].time - cloud_keyposes_6d_->points[point_idx_[i]].time > 30.)
+    if (cloud_keyposes_6d_->points[latest_history_frame_id_].time - cloud_keyposes_6d_->points[point_idx_[i]].time > 30.)
     {
       closest_history_frame_id_ = point_idx_[i];
       break;
@@ -811,7 +813,7 @@ bool LaserMapping::detectLoopClosure()
   {
     sensor_msgs::PointCloud2Ptr msg(new sensor_msgs::PointCloud2);
     pcl::toROSMsg(*near_history_keyframes_, *msg);
-    msg->header.stamp.fromSec(cloud_keyposes_6d_->points[point_idx_[latest_history_frame_id_]].time);
+    msg->header.stamp.fromSec(cloud_keyposes_6d_->points[latest_history_frame_id_].time);
     msg->header.frame_id = "map";
     pub_history_keyframes_.publish(msg);
   }

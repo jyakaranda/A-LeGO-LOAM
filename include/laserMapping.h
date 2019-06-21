@@ -55,7 +55,7 @@ private:
   int closest_history_frame_id_;
   PointCloudT::Ptr latest_keyframe_;
   PointCloudT::Ptr near_history_keyframes_;
-  std::deque<PointCloudT::Ptr> recent_keyframes_;
+
   std::mutex mtx_;
   std::thread loop_thread_;
   std::thread main_thread_;
@@ -120,6 +120,7 @@ private:
   deque<PointCloudT::Ptr> recent_outlier_keyframes_;
   int recent_keyframe_search_num_;
   int latest_frame_id_;
+  Eigen::Matrix4d correction_;
 
   // 无回环检测使用
   PointCloudT::Ptr surround_keyposes_;

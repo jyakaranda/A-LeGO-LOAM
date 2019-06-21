@@ -20,9 +20,9 @@ private:
   PointCloudT::Ptr segmented_cloud_;
   PointCloudT::Ptr outlier_cloud_;
 
-  Eigen::Matrix<float, N_SCAN, Horizon_SCAN> range_mat_;
-  Eigen::Matrix<int, N_SCAN, Horizon_SCAN> label_mat_;
-  Eigen::Matrix<bool, N_SCAN, Horizon_SCAN> ground_mat_;
+  Eigen::Matrix<float, Eigen::Dynamic, Horizon_SCAN> range_mat_;
+  Eigen::Matrix<int, Eigen::Dynamic, Horizon_SCAN> label_mat_;
+  Eigen::Matrix<bool, Eigen::Dynamic, Horizon_SCAN> ground_mat_;
 
   int label_cnt_;
   vector<pair<int, int>> neighbor_iter_;
@@ -41,5 +41,11 @@ private:
   void labelComponents(int row, int col);
 
   void publish();
+
+  template <typename PointT>
+  void removeClosedPointCloud(const pcl::PointCloud<PointT> &cloud_in,
+                              pcl::PointCloud<PointT> &cloud_out, float thres);
 };
 } // namespace loam
+
+PLUGINLIB_EXPORT_CLASS(loam::ImageProjection, nodelet::Nodelet);
