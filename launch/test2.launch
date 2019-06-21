@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="alego" type="IP" name="IP" />
+  <node pkg="alego" type="LO" name="LO" output="log" />
+  <node pkg="alego" type="LM" name="LM" output="log" />
+</launch>
