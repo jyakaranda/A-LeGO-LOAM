@@ -77,6 +77,7 @@ void LaserMapping::onInit()
   history_search_num_ = 25;
   history_fitness_score_ = 0.4;
   loop_closure_enabled_ = true;
+  correction_.setIdentity();
 
   pub_cloud_surround_ = nh_.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surround", 10);
   pub_odom_aft_mapped_ = nh_.advertise<nav_msgs::Odometry>("/odom_aft_mapped", 10);
@@ -111,13 +112,13 @@ void LaserMapping::mainLoop()
       {
         std::lock_guard<std::mutex> lock(mtx_);
         TicToc t_whole;
-        correctPoses();
         transformAssociateToMap();
         extractSurroundingKeyFrames();
         downsampleCurrentScan();
         scan2MapOptimization();
-        transformUpdate();
         saveKeyFramesAndFactor();
+        correctPoses();
+        transformUpdate();
         publish();
         NODELET_INFO("mapping whole time: %.3fms", t_whole.toc());
       }

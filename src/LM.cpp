@@ -210,6 +210,7 @@ public:
     history_search_num_ = 25;
     history_fitness_score_ = 0.3;
     loop_closure_enabled_ = true;
+    correction_.setIdentity();
 
     pub_cloud_surround_ = nh_.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surround", 10);
     pub_odom_aft_mapped_ = nh_.advertise<nav_msgs::Odometry>("/odom_aft_mapped", 10);
@@ -243,8 +244,6 @@ public:
         {
           std::lock_guard<std::mutex> lock(mtx_);
           TicToc t_whole;
-          correctPoses();
-
           ROS_INFO("transformAssociateToMap");
           TicToc t_tatm;
           transformAssociateToMap();
@@ -261,8 +260,9 @@ public:
           TicToc t_s2mo;
           scan2MapOptimization();
           ROS_INFO("scan2MapOptimization: %.3fms", t_s2mo.toc());
-          transformUpdate();
           saveKeyFramesAndFactor();
+          correctPoses();
+          transformUpdate();
           publish();
           ROS_INFO("mapping whole time: %.3fms", t_whole.toc());
         }
