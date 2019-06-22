@@ -18,7 +18,7 @@ private:
   PointCloudT::Ptr segmented_cloud_;
   PointCloudT::Ptr outlier_cloud_;
 
-  Eigen::Matrix<float, Eigen::Dynamic, Horizon_SCAN> range_mat_;
+  Eigen::Matrix<double, Eigen::Dynamic, Horizon_SCAN> range_mat_;
   Eigen::Matrix<int, Eigen::Dynamic, Horizon_SCAN> label_mat_;
   Eigen::Matrix<bool, Eigen::Dynamic, Horizon_SCAN> ground_mat_;
 
@@ -58,7 +58,7 @@ public:
     range_mat_.resize(N_SCAN, Eigen::NoChange);
     label_mat_.resize(N_SCAN, Eigen::NoChange);
     ground_mat_.resize(N_SCAN, Eigen::NoChange);
-    range_mat_.setConstant(std::numeric_limits<float>::max());
+    range_mat_.setConstant(std::numeric_limits<double>::max());
     label_mat_.setZero();
     ground_mat_.setZero();
     label_cnt_ = 1;
@@ -105,11 +105,9 @@ public:
 
   void pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
   {
-    // cout << "pcCB" << endl;
     TicToc t_whole;
 
     seg_info_msg_->header = msg->header;
-    ROS_INFO("seg_info header.stamp: %.3f", seg_info_msg_->header.stamp.toSec());
     PointCloudT::Ptr cloud_in(new PointCloudT());
     pcl::fromROSMsg(*msg, *cloud_in);
     // ROS_INFO("cloud_in size: %d", cloud_in->points.size());
@@ -131,7 +129,7 @@ public:
     }
     seg_info_msg_->orientationDiff = seg_info_msg_->endOrientation - seg_info_msg_->startOrientation;
 
-    float vertical_ang, horizon_ang;
+    double vertical_ang, horizon_ang;
     int row_id, col_id, index;
     for (int i = 0; i < cloud_size; ++i)
     {
@@ -165,7 +163,7 @@ public:
 
     // groundRemoval
     int lower_id, upper_id;
-    float diff_x, diff_y, diff_z, angle;
+    double diff_x, diff_y, diff_z, angle;
     for (int j = 0; j < Horizon_SCAN; ++j)
     {
       for (int i = 0; i < ground_scan_id; ++i)
@@ -175,7 +173,6 @@ public:
 
         if (-1 == full_cloud_->points[lower_id].intensity || -1 == full_cloud_->points[upper_id].intensity)
         {
-          // ground_mat_(i, j) = -1;
           continue;
         }
 
@@ -186,7 +183,7 @@ public:
 
         if (abs(angle - sensor_mount_ang) < 10.)
         {
-          ground_mat_(i, j) = ground_mat_(i + 1, j) = 1;
+          ground_mat_(i, j) = ground_mat_(i + 1, j) = true;
         }
       }
     }
@@ -195,7 +192,7 @@ public:
     {
       for (int j = 0; j < Horizon_SCAN; ++j)
       {
-        if (ground_mat_(i, j) == 1 || range_mat_(i, j) == std::numeric_limits<float>::max())
+        if (ground_mat_(i, j) == true || range_mat_(i, j) == std::numeric_limits<double>::max())
         {
           label_mat_(i, j) = -1;
         }
@@ -221,7 +218,7 @@ public:
       seg_info_msg_->startRingIndex[i] = line_size + 5;
       for (int j = 0; j < Horizon_SCAN; ++j)
       {
-        if (label_mat_(i, j) > 0 || ground_mat_(i, j) == 1)
+        if (label_mat_(i, j) > 0 || ground_mat_(i, j) == true)
         {
           // TODO: 这里对噪点和地面点的滤波对结果有提升吗？
           if (label_mat_(i, j) == 999999)
@@ -232,7 +229,7 @@ public:
             }
             continue;
           }
-          else if (ground_mat_(i, j) == 1)
+          else if (ground_mat_(i, j) == true)
           {
             if (j % 5 != 0 && j > 4 && j < Horizon_SCAN - 5)
             {
@@ -240,7 +237,7 @@ public:
             }
           }
 
-          seg_info_msg_->segmentedCloudGroundFlag[line_size] = (ground_mat_(i, j) == 1);
+          seg_info_msg_->segmentedCloudGroundFlag[line_size] = (ground_mat_(i, j) == true);
           seg_info_msg_->segmentedCloudColInd[line_size] = j;
           seg_info_msg_->segmentedCloudRange[line_size] = range_mat_(i, j);
           segmented_cloud_->points.push_back(full_cloud_->points[j + i * Horizon_SCAN]);
@@ -256,7 +253,7 @@ public:
 
     segmented_cloud_->clear();
     outlier_cloud_->clear();
-    range_mat_.setConstant(std::numeric_limits<float>::max());
+    range_mat_.setConstant(std::numeric_limits<double>::max());
     label_mat_.setZero();
     ground_mat_.setZero();
     label_cnt_ = 1;
@@ -269,7 +266,7 @@ public:
 
   void labelComponents(int row, int col)
   {
-    float d1, d2, alpha, angle;
+    double d1, d2, alpha, angle;
     int from_id_i, from_id_j, this_id_i, this_id_j;
     bool line_cnt_flag[N_SCAN] = {false};
 

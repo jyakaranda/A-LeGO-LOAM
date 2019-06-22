@@ -8,5 +8,5 @@ float32 endOrientation
 float32 orientationDiff
 
 bool[]    segmentedCloudGroundFlag
-uint32[]  segmentedCloudColInd 
+int32[]  segmentedCloudColInd 
 float32[] segmentedCloudRange

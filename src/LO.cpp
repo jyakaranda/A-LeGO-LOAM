@@ -30,24 +30,24 @@ private:
 
   int imu_ptr_front_, imu_ptr_last_, imu_ptr_last_iter_;
   std::array<double, imu_queue_length> imu_time_;
-  std::array<float, imu_queue_length> imu_roll_;
-  std::array<float, imu_queue_length> imu_pitch_;
-  std::array<float, imu_queue_length> imu_yaw_;
-  std::array<float, imu_queue_length> imu_shift_x_;
-  std::array<float, imu_queue_length> imu_shift_y_;
-  std::array<float, imu_queue_length> imu_shift_z_;
-  std::array<float, imu_queue_length> imu_velo_x_;
-  std::array<float, imu_queue_length> imu_velo_y_;
-  std::array<float, imu_queue_length> imu_velo_z_;
+  std::array<double, imu_queue_length> imu_roll_;
+  std::array<double, imu_queue_length> imu_pitch_;
+  std::array<double, imu_queue_length> imu_yaw_;
+  std::array<double, imu_queue_length> imu_shift_x_;
+  std::array<double, imu_queue_length> imu_shift_y_;
+  std::array<double, imu_queue_length> imu_shift_z_;
+  std::array<double, imu_queue_length> imu_velo_x_;
+  std::array<double, imu_queue_length> imu_velo_y_;
+  std::array<double, imu_queue_length> imu_velo_z_;
 
   // 里程计相关
   int odom_ptr_front_, odom_ptr_last_, odom_ptr_last_iter_;
   std::array<nav_msgs::OdometryConstPtr, odom_queue_length> odom_queue_;
-  std::array<float, odom_queue_length> odom_roll_;
-  std::array<float, odom_queue_length> odom_pitch_;
-  std::array<float, odom_queue_length> odom_yaw_;
+  std::array<double, odom_queue_length> odom_roll_;
+  std::array<double, odom_queue_length> odom_pitch_;
+  std::array<double, odom_queue_length> odom_yaw_;
 
-  std::array<float, N_SCAN * Horizon_SCAN> cloud_curvature_;
+  std::array<double, N_SCAN * Horizon_SCAN> cloud_curvature_;
   std::array<bool, N_SCAN * Horizon_SCAN> cloud_neighbor_picked_;
   std::array<int, N_SCAN * Horizon_SCAN> cloud_label_;
   std::array<int, N_SCAN * Horizon_SCAN> cloud_sort_idx_;
@@ -188,7 +188,7 @@ public:
         alego::cloud_infoConstPtr seg_info = seg_info_buf_.front();
         for (int i = 5; i < cloud_size - 5; ++i)
         {
-          float diff_range = seg_info->segmentedCloudRange[i - 5] + seg_info->segmentedCloudRange[i - 4] + seg_info->segmentedCloudRange[i - 3] + seg_info->segmentedCloudRange[i - 2] + seg_info->segmentedCloudRange[i - 1] - seg_info->segmentedCloudRange[i] * 10 + seg_info->segmentedCloudRange[i + 1] + seg_info->segmentedCloudRange[i + 2] + seg_info->segmentedCloudRange[i + 3] + seg_info->segmentedCloudRange[i + 4] + seg_info->segmentedCloudRange[i + 5];
+          double diff_range = seg_info->segmentedCloudRange[i - 5] + seg_info->segmentedCloudRange[i - 4] + seg_info->segmentedCloudRange[i - 3] + seg_info->segmentedCloudRange[i - 2] + seg_info->segmentedCloudRange[i - 1] - seg_info->segmentedCloudRange[i] * 10 + seg_info->segmentedCloudRange[i + 1] + seg_info->segmentedCloudRange[i + 2] + seg_info->segmentedCloudRange[i + 3] + seg_info->segmentedCloudRange[i + 4] + seg_info->segmentedCloudRange[i + 5];
           cloud_curvature_[i] = diff_range * diff_range;
           cloud_neighbor_picked_[i] = 0;
           cloud_label_[i] = 0;
@@ -200,24 +200,25 @@ public:
         {
           float depth1 = seg_info->segmentedCloudRange[i];
           float depth2 = seg_info->segmentedCloudRange[i + 1];
-          int col_diff = abs(seg_info->segmentedCloudColInd[i] - seg_info->segmentedCloudColInd[i + 1]);
-          if (col_diff < 10)
+          int col_diff = std::abs(seg_info->segmentedCloudColInd[i] - seg_info->segmentedCloudColInd[i + 1]);
+          if (std::abs(col_diff) < 10)
           {
             // TODO: 可以调下参数
-            if (depth1 - depth2 > 1.0)
+            if (depth1 - depth2 > 0.5)
             {
               cloud_neighbor_picked_[i - 5] = cloud_neighbor_picked_[i - 4] = cloud_neighbor_picked_[i - 3] = cloud_neighbor_picked_[i - 2] = cloud_neighbor_picked_[i - 1] = cloud_neighbor_picked_[i] = true;
               occ1 += 6;
+              cout << "col1: " << seg_info->segmentedCloudColInd[i] << ", col2: " << seg_info->segmentedCloudColInd[i+1] << ", col_diff: " << col_diff << ", depth1: " << depth1 << ", depth2: " << depth2 << endl;
               continue;
             }
-            else if (depth2 - depth1 > 1.0)
+            else if (depth2 - depth1 > 0.5)
             {
               cloud_neighbor_picked_[i + 1] = cloud_neighbor_picked_[i + 2] = cloud_neighbor_picked_[i + 3] = cloud_neighbor_picked_[i + 4] = cloud_neighbor_picked_[i + 5] = true;
               occ2 += 5;
             }
           }
-          float diff1 = abs(seg_info->segmentedCloudRange[i - 1] - depth1);
-          float diff2 = abs(depth2 - depth1);
+          double diff1 = std::abs(seg_info->segmentedCloudRange[i - 1] - depth1);
+          double diff2 = std::abs(depth2 - depth1);
           if (diff1 > 0.02 * seg_info->segmentedCloudRange[i] && diff2 > 0.02 * seg_info->segmentedCloudRange[i])
           {
             cloud_neighbor_picked_[i] = true;
@@ -235,7 +236,7 @@ public:
         PointCloudT::Ptr less_flat(new PointCloudT);
         PointCloudT::Ptr less_flat_scan(new PointCloudT);
 
-        float t_sort = 0.;
+        double t_sort = 0.;
         for (int i = 0; i < N_SCAN; ++i)
         {
           less_flat_scan->clear();
@@ -244,9 +245,9 @@ public:
           {
             int sp = seg_info->startRingIndex[i] + j * diff_idx / 6;
             int ep = seg_info->startRingIndex[i] + (j + 1) * diff_idx / 6 - 1;
-            if (sp >= ep){
-              ROS_INFO("impossible");
-              ROS_INFO("sp: %d, ep: %d, start: %d, end: %d", sp, ep, seg_info->startRingIndex[i], seg_info->endRingIndex[i]);
+            if (sp >= ep)
+            {
+              ROS_INFO("i: %d, sp: %d, ep: %d, start: %d, end: %d", i, sp, ep, seg_info->startRingIndex[i], seg_info->endRingIndex[i]);
               continue;
             }
             TicToc t_tmp;
@@ -411,7 +412,7 @@ public:
             if (search_dist[0] < nearest_feature_dist)
             {
               closest_idx = search_idx[0];
-              float point_dist, min_dist2 = nearest_feature_dist, min_dist3 = nearest_feature_dist;
+              double point_dist, min_dist2 = nearest_feature_dist, min_dist3 = nearest_feature_dist;
               int closest_scan = int(surf_last_->points[closest_idx].intensity);
               for (int k = closest_idx + 1; k < surf_last_->points.size(); ++k)
               {
@@ -502,7 +503,7 @@ public:
             {
               closest_idx = search_idx[0];
               int closest_scan = int(corner_last_->points[closest_idx].intensity);
-              float point_dist, min_point_dist2 = nearest_feature_dist;
+              double point_dist, min_point_dist2 = nearest_feature_dist;
               // lego 这里 k 的范围写的不对
               for (int k = closest_idx + 1; k < corner_last_->points.size(); ++k)
               {
@@ -551,6 +552,10 @@ public:
           ROS_INFO("data association time: %.3fms", t_data.toc());
           if (corner_correspondance >= 10)
           {
+            if (corner_correspondance <= 50)
+            {
+              ROS_WARN("corner correspondance <= 50");
+            }
             TicToc t_solver;
             ceres::Solver::Options options;
             options.linear_solver_type = ceres::DENSE_QR;
@@ -690,8 +695,8 @@ public:
           else
           {
             int imu_ptr_back = (imu_ptr_front_ - 1 + imu_queue_length) % imu_queue_length;
-            float ratio_front = (cur_time - imu_time_[imu_ptr_back]) / (imu_time_[imu_ptr_front_] - imu_time_[imu_ptr_back]);
-            float ratio_back = 1. - ratio_front;
+            double ratio_front = (cur_time - imu_time_[imu_ptr_back]) / (imu_time_[imu_ptr_front_] - imu_time_[imu_ptr_back]);
+            double ratio_back = 1. - ratio_front;
             rpy_cur(0) = imu_roll_[imu_ptr_front_] * ratio_front + imu_roll_[imu_ptr_back] * ratio_back;
             rpy_cur(1) = imu_pitch_[imu_ptr_front_] * ratio_front + imu_pitch_[imu_ptr_back] * ratio_back;
             rpy_cur(2) = imu_yaw_[imu_ptr_front_] * ratio_front + imu_yaw_[imu_ptr_back] * ratio_back;
@@ -751,8 +756,8 @@ public:
           else
           {
             int odom_ptr_back = (odom_ptr_front_ - 1 + odom_queue_length) % odom_queue_length;
-            float ratio_front = (cur_time - odom_queue_[odom_ptr_back]->header.stamp.toSec()) / (odom_queue_[odom_ptr_front_]->header.stamp.toSec() - odom_queue_[odom_ptr_back]->header.stamp.toSec());
-            float ratio_back = 1. - ratio_front;
+            double ratio_front = (cur_time - odom_queue_[odom_ptr_back]->header.stamp.toSec()) / (odom_queue_[odom_ptr_front_]->header.stamp.toSec() - odom_queue_[odom_ptr_back]->header.stamp.toSec());
+            double ratio_back = 1. - ratio_front;
             rpy_cur(0) = ratio_front * odom_roll_[odom_ptr_front_] + ratio_back * odom_roll_[odom_ptr_back];
             rpy_cur(1) = ratio_front * odom_pitch_[odom_ptr_front_] + ratio_back * odom_pitch_[odom_ptr_back];
             rpy_cur(2) = ratio_front * odom_yaw_[odom_ptr_front_] + ratio_back * odom_yaw_[odom_ptr_back];
@@ -833,9 +838,9 @@ public:
     tf::Quaternion ori;
     tf::quaternionMsgToTF(msg->orientation, ori);
     tf::Matrix3x3(ori).getRPY(roll, pitch, yaw);
-    float acc_x = msg->linear_acceleration.x + 9.81 * sin(pitch);
-    float acc_y = msg->linear_acceleration.y - 9.81 * cos(pitch) * sin(roll);
-    float acc_z = msg->linear_acceleration.z - 9.81 * cos(pitch) * cos(roll);
+    double acc_x = msg->linear_acceleration.x + 9.81 * sin(pitch);
+    double acc_y = msg->linear_acceleration.y - 9.81 * cos(pitch) * sin(roll);
+    double acc_z = msg->linear_acceleration.z - 9.81 * cos(pitch) * cos(roll);
 
     imu_ptr_last_ = (imu_ptr_last_ + 1) % imu_queue_length;
     if ((imu_ptr_last_ + 1) % imu_queue_length == imu_ptr_front_)

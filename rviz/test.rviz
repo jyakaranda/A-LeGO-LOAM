@@ -5,6 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /ImageProjection1
+        - /LaserMapping1
       Splitter Ratio: 0.5
     Tree Height: 773
   - Class: rviz/Selection
@@ -25,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: corner_last
+    SyncSource: sharp
 Visualization Manager:
   Class: ""
   Displays:
@@ -52,19 +54,11 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        aft_mapped:
-          Value: true
         base_link:
-          Value: true
-        camera:
-          Value: true
-        camera_init:
           Value: true
         imu_link:
           Value: true
         laser:
-          Value: true
-        laser_odom:
           Value: true
         map:
           Value: true
@@ -80,20 +74,15 @@ Visualization Manager:
       Tree:
         map:
           odom:
-            laser:
-              {}
+            base_link:
+              imu_link:
+                {}
+              laser:
+                {}
+              wheel_rr:
+                {}
       Update Interval: 0
       Value: true
-    - Alpha: 0.699999988
-      Class: rviz/Map
-      Color Scheme: map
-      Draw Behind: false
-      Enabled: false
-      Name: Map
-      Topic: /realtime_cost_map
-      Unreliable: false
-      Use Timestamp: false
-      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -166,7 +155,7 @@ Visualization Manager:
           Channel Name: intensity
           Class: rviz/PointCloud2
           Color: 255; 255; 255
-          Color Transformer: FlatColor
+          Color Transformer: ""
           Decay Time: 0
           Enabled: false
           Invert Rainbow: false
@@ -198,12 +187,12 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 15.1131001
+          Max Intensity: 15.1931
           Min Color: 0; 0; 0
-          Min Intensity: 0.0344999991
+          Min Intensity: 9.99999975e-05
           Name: segmented
           Position Transformer: XYZ
           Queue Size: 10
@@ -215,7 +204,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -246,7 +235,7 @@ Visualization Manager:
           Use Fixed Frame: true
           Use rainbow: true
           Value: false
-      Enabled: false
+      Enabled: true
       Name: ImageProjection
     - Class: rviz/Group
       Displays:
@@ -423,7 +412,7 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 78.0999985
+          Max Intensity: 702.099976
           Min Color: 0; 0; 0
           Min Intensity: 0.100000001
           Name: keyposes
@@ -453,15 +442,15 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 15.1989994
+          Max Intensity: 15.1995001
           Min Color: 0; 0; 0
-          Min Intensity: 0.00300000003
+          Min Intensity: 0.00970000029
           Name: laser_cloud_surround
           Position Transformer: XYZ
           Queue Size: 10
           Selectable: true
           Size (Pixels): 3
-          Size (m): 0.100000001
+          Size (m): 0.0299999993
           Style: Flat Squares
           Topic: /laser_cloud_surround
           Unreliable: false
@@ -528,6 +517,96 @@ Visualization Manager:
           Use Fixed Frame: true
           Use rainbow: true
           Value: false
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 85; 0; 255
+          Color Transformer: FlatColor
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 85; 85; 255
+          Max Intensity: 15.1995001
+          Min Color: 0; 0; 0
+          Min Intensity: 0.114
+          Name: recent_keyframes
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.100000001
+          Style: Flat Squares
+          Topic: /recent_keyframes
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 255; 0; 0
+          Color Transformer: FlatColor
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 15.1680002
+          Min Color: 0; 0; 0
+          Min Intensity: 0.00350000011
+          Name: icp_keyframe
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.200000003
+          Style: Flat Squares
+          Topic: /icp_keyframes
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 255; 255; 0
+          Color Transformer: FlatColor
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 15.1905003
+          Min Color: 0; 0; 0
+          Min Intensity: 0.00300000003
+          Name: history_keyframes
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.100000001
+          Style: Flat Squares
+          Topic: /history_keyframes
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
         - Angle Tolerance: 0.100000001
           Class: rviz/Odometry
           Covariance:
@@ -564,96 +643,6 @@ Visualization Manager:
           Value: false
       Enabled: true
       Name: LaserMapping
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: Intensity
-      Decay Time: 0
-      Enabled: false
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 15.1995001
-      Min Color: 0; 0; 0
-      Min Intensity: 0.00350000011
-      Name: recent_keyframes
-      Position Transformer: XYZ
-      Queue Size: 10
-      Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.100000001
-      Style: Flat Squares
-      Topic: /recent_keyframes
-      Unreliable: false
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: false
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz/PointCloud2
-      Color: 255; 0; 0
-      Color Transformer: FlatColor
-      Decay Time: 0
-      Enabled: true
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 15.1680002
-      Min Color: 0; 0; 0
-      Min Intensity: 0.00350000011
-      Name: icp_keyframe
-      Position Transformer: XYZ
-      Queue Size: 10
-      Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.200000003
-      Style: Flat Squares
-      Topic: /icp_keyframes
-      Unreliable: false
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: true
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz/PointCloud2
-      Color: 255; 255; 0
-      Color Transformer: FlatColor
-      Decay Time: 0
-      Enabled: true
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 15.1905003
-      Min Color: 0; 0; 0
-      Min Intensity: 0.00300000003
-      Name: history_keyframes
-      Position Transformer: XYZ
-      Queue Size: 10
-      Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.100000001
-      Style: Flat Squares
-      Topic: /history_keyframes
-      Unreliable: false
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -679,25 +668,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 255.172745
+      Distance: 347.864105
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -26.204298
-        Y: 1.7357285
-        Z: -22.2571354
+        X: -21.7949886
+        Y: -72.5105057
+        Z: -32.6525269
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 1.52979636
+      Pitch: 1.56979632
       Target Frame: map
       Value: Orbit (rviz)
-      Yaw: 1.48869622
+      Yaw: 1.52586472
     Saved: ~
 Window Geometry:
   Displays:

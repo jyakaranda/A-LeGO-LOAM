@@ -928,13 +928,13 @@ public:
     closest_history_frame_id_ = -1;
     for (int i = 0; i < point_idx_.size(); ++i)
     {
+      // 时间太短不做回环
       if (cloud_keyposes_6d_->points[latest_history_frame_id_].time - cloud_keyposes_6d_->points[point_idx_[i]].time > 30.)
       {
         closest_history_frame_id_ = point_idx_[i];
         break;
       }
     }
-    // 时间太短不做回环
     if (closest_history_frame_id_ == -1)
     {
       return false;
