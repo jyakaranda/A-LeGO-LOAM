@@ -20,7 +20,7 @@ private:
   PointCloudT::Ptr segmented_cloud_;
   PointCloudT::Ptr outlier_cloud_;
 
-  Eigen::Matrix<float, Eigen::Dynamic, Horizon_SCAN> range_mat_;
+  Eigen::Matrix<double, Eigen::Dynamic, Horizon_SCAN> range_mat_;
   Eigen::Matrix<int, Eigen::Dynamic, Horizon_SCAN> label_mat_;
   Eigen::Matrix<bool, Eigen::Dynamic, Horizon_SCAN> ground_mat_;
 

@@ -61,9 +61,9 @@ private:
   std::thread main_thread_;
   std::thread visualize_thread_;
 
-  float history_search_radius_; // 回环检测参数
+  double history_search_radius_; // 回环检测参数
   int history_search_num_;
-  float history_fitness_score_;
+  double history_fitness_score_;
   bool loop_closure_enabled_;
 
   PointCloudT::Ptr surf_last_;

@@ -35,24 +35,24 @@ private:
 
   int imu_ptr_front_, imu_ptr_last_, imu_ptr_last_iter_;
   std::array<double, imu_queue_length> imu_time_;
-  std::array<float, imu_queue_length> imu_roll_;
-  std::array<float, imu_queue_length> imu_pitch_;
-  std::array<float, imu_queue_length> imu_yaw_;
-  std::array<float, imu_queue_length> imu_shift_x_;
-  std::array<float, imu_queue_length> imu_shift_y_;
-  std::array<float, imu_queue_length> imu_shift_z_;
-  std::array<float, imu_queue_length> imu_velo_x_;
-  std::array<float, imu_queue_length> imu_velo_y_;
-  std::array<float, imu_queue_length> imu_velo_z_;
+  std::array<double, imu_queue_length> imu_roll_;
+  std::array<double, imu_queue_length> imu_pitch_;
+  std::array<double, imu_queue_length> imu_yaw_;
+  std::array<double, imu_queue_length> imu_shift_x_;
+  std::array<double, imu_queue_length> imu_shift_y_;
+  std::array<double, imu_queue_length> imu_shift_z_;
+  std::array<double, imu_queue_length> imu_velo_x_;
+  std::array<double, imu_queue_length> imu_velo_y_;
+  std::array<double, imu_queue_length> imu_velo_z_;
 
   // 里程计相关
   int odom_ptr_front_, odom_ptr_last_, odom_ptr_last_iter_;
   std::array<nav_msgs::OdometryConstPtr, odom_queue_length> odom_queue_;
-  std::array<float, odom_queue_length> odom_roll_;
-  std::array<float, odom_queue_length> odom_pitch_;
-  std::array<float, odom_queue_length> odom_yaw_;
+  std::array<double, odom_queue_length> odom_roll_;
+  std::array<double, odom_queue_length> odom_pitch_;
+  std::array<double, odom_queue_length> odom_yaw_;
 
-  std::array<float, N_SCAN * Horizon_SCAN> cloud_curvature_;
+  std::array<double, N_SCAN * Horizon_SCAN> cloud_curvature_;
   std::array<bool, N_SCAN * Horizon_SCAN> cloud_neighbor_picked_;
   std::array<int, N_SCAN * Horizon_SCAN> cloud_label_;
   std::array<int, N_SCAN * Horizon_SCAN> cloud_sort_idx_;

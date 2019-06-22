@@ -30,7 +30,7 @@ void ImageProjection::onInit()
   label_mat_.resize(N_SCAN, Eigen::NoChange);
   ground_mat_.resize(N_SCAN, Eigen::NoChange);
 
-  range_mat_.setConstant(std::numeric_limits<float>::max());
+  range_mat_.setConstant(std::numeric_limits<double>::max());
   label_mat_.setZero();
   ground_mat_.setZero();
   label_cnt_ = 1;
@@ -48,7 +48,6 @@ void ImageProjection::onInit()
 
 void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
-  // cout << "pcCB" << endl;
   TicToc t_whole;
 
   seg_info_msg_->header = msg->header;
@@ -72,7 +71,7 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
   }
   seg_info_msg_->orientationDiff = seg_info_msg_->endOrientation - seg_info_msg_->startOrientation;
 
-  float vertical_ang, horizon_ang;
+  double vertical_ang, horizon_ang;
   int row_id, col_id, index;
   for (int i = 0; i < cloud_size; ++i)
   {
@@ -106,7 +105,7 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
 
   // groundRemoval
   int lower_id, upper_id;
-  float diff_x, diff_y, diff_z, angle;
+  double diff_x, diff_y, diff_z, angle;
   for (int j = 0; j < Horizon_SCAN; ++j)
   {
     for (int i = 0; i < ground_scan_id; ++i)
@@ -136,7 +135,7 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
   {
     for (int j = 0; j < Horizon_SCAN; ++j)
     {
-      if (ground_mat_(i, j) == 1 || range_mat_(i, j) == std::numeric_limits<float>::max())
+      if (ground_mat_(i, j) == 1 || range_mat_(i, j) == std::numeric_limits<double>::max())
       {
         label_mat_(i, j) = -1;
       }
@@ -197,7 +196,7 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
 
   segmented_cloud_->clear();
   outlier_cloud_->clear();
-  range_mat_.setConstant(std::numeric_limits<float>::max());
+  range_mat_.setConstant(std::numeric_limits<double>::max());
   label_mat_.setZero();
   ground_mat_.setZero();
   label_cnt_ = 1;
@@ -210,7 +209,7 @@ void ImageProjection::pcCB(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 void ImageProjection::labelComponents(int row, int col)
 {
-  float d1, d2, alpha, angle;
+  double d1, d2, alpha, angle;
   int from_id_i, from_id_j, this_id_i, this_id_j;
   bool line_cnt_flag[N_SCAN] = {false};
 
