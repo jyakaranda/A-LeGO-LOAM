@@ -1,4 +1,4 @@
-#include "imageProjection.h"
+#include "alego/imageProjection.h"
 
 namespace loam
 {

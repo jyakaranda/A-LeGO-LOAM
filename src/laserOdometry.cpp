@@ -1,4 +1,4 @@
-#include "laserOdometry.h"
+#include "alego/laserOdometry.h"
 
 namespace loam
 {

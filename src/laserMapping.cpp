@@ -1,4 +1,4 @@
-#include "laserMapping.h"
+#include "alego/laserMapping.h"
 
 namespace loam
 {

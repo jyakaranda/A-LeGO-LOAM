@@ -1,4 +1,4 @@
-#include "utility.h"
+#include "alego/utility.h"
 
 using namespace std;
 class LO

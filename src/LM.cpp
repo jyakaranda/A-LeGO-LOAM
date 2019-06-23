@@ -1,4 +1,4 @@
-#include "utility.h"
+#include "alego/utility.h"
 #include <gtsam/geometry/Rot3.h>
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/slam/PriorFactor.h>
