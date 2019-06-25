@@ -416,7 +416,7 @@ public:
               int closest_scan = int(surf_last_->points[closest_idx].intensity);
               for (int k = closest_idx + 1; k < surf_last_->points.size(); ++k)
               {
-                if (int(surf_last_->points[k].intensity) > closest_scan + 2)
+                if (int(surf_last_->points[k].intensity) > closest_scan + 2.5)
                 {
                   break;
                 }
@@ -440,7 +440,7 @@ public:
               }
               for (int k = closest_idx - 1; k >= 0; --k)
               {
-                if (int(surf_last_->points[k].intensity) < closest_scan - 2)
+                if (int(surf_last_->points[k].intensity) < closest_scan - 2.5)
                 {
                   break;
                 }
@@ -507,7 +507,7 @@ public:
               // lego 这里 k 的范围写的不对
               for (int k = closest_idx + 1; k < corner_last_->points.size(); ++k)
               {
-                if (int(corner_last_->points[k].intensity) > closest_scan + 2)
+                if (int(corner_last_->points[k].intensity) > closest_scan + 2.5)
                 {
                   break;
                 }
@@ -523,7 +523,7 @@ public:
               }
               for (int k = closest_idx - 1; k >= 0; --k)
               {
-                if (int(corner_last_->points[k].intensity) < closest_scan - 2)
+                if (int(corner_last_->points[k].intensity) < closest_scan - 2.5)
                 {
                   break;
                 }

@@ -34,7 +34,7 @@ generate_messages(
   nav_msgs
 )
 
-catkin_package()
+catkin_package(INCLUDE_DIRS include)
 
 include_directories(
   include

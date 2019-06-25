@@ -85,6 +85,7 @@ void LaserMapping::onInit()
   pub_recent_keyframes_ = nh_.advertise<sensor_msgs::PointCloud2>("/recent_keyframes", 10);
   pub_history_keyframes_ = nh_.advertise<sensor_msgs::PointCloud2>("/history_keyframes", 10);
   pub_icp_keyframes_ = nh_.advertise<sensor_msgs::PointCloud2>("/icp_keyframes", 10);
+  srv_save_map_ = nh_.advertiseService("/save_map", &LaserMapping::saveMapCB, this);
 
   sub_surf_last_ = nh_.subscribe<sensor_msgs::PointCloud2>("/surf_last", 10, boost::bind(&LaserMapping::surfLastHandler, this, _1));
   sub_corner_last_ = nh_.subscribe<sensor_msgs::PointCloud2>("/corner_last", 10, boost::bind(&LaserMapping::cornerLastHandler, this, _1));
@@ -818,6 +819,56 @@ bool LaserMapping::detectLoopClosure()
     msg->header.frame_id = "map";
     pub_history_keyframes_.publish(msg);
   }
+
+  return true;
+}
+
+bool LaserMapping::saveMapCB(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+  // cloudKeyPoses3D cloudKeyPoses6D cornerCloudKeyFrames surfCloudKeyFrames outlierCloudKeyFrames
+  PointCloudT::Ptr map_keypose(new PointCloudT);
+  PointCloudT::Ptr map_corner(new PointCloudT);
+  PointCloudT::Ptr map_surf(new PointCloudT);
+  PointCloudT::Ptr map_outlier(new PointCloudT);
+
+  for (int i = 0; i < cloud_keyposes_3d_->points.size(); ++i)
+  {
+    PointT p = cloud_keyposes_3d_->points[i];
+    p.intensity = i;
+    map_keypose->points.push_back(p);
+  }
+
+  PointCloudT::Ptr tmp(new PointCloudT);
+
+  for (int i = 0; i < cloud_keyposes_3d_->points.size(); ++i)
+  {
+    tmp = transformPointCloud(corner_frames_[i], cloud_keyposes_6d_->points[i], i);
+    map_corner->points.insert(map_corner->points.end(), tmp->points.begin(), tmp->points.end());
+
+    tmp = transformPointCloud(surf_frames_[i], cloud_keyposes_6d_->points[i], i);
+    map_surf->points.insert(map_surf->points.end(), tmp->points.begin(), tmp->points.end());
+
+    tmp = transformPointCloud(outlier_frames_[i], cloud_keyposes_6d_->points[i], i);
+    map_outlier->points.insert(map_outlier->points.end(), tmp->points.begin(), tmp->points.end());
+  }
+
+  map_keypose->width = map_keypose->points.size();
+  map_keypose->height = 1;
+  map_keypose->is_dense = false;
+  map_corner->width = map_corner->points.size();
+  map_corner->height = 1;
+  map_corner->is_dense = true;
+  map_surf->width = map_surf->points.size();
+  map_surf->height = 1;
+  map_surf->is_dense = true;
+  map_outlier->width = map_outlier->points.size();
+  map_outlier->height = 1;
+  map_outlier->is_dense = true;
+
+  pcl::io::savePCDFile("/home/zh/keypose.pcd", *map_keypose);
+  pcl::io::savePCDFile("/home/zh/corner.pcd", *map_corner);
+  pcl::io::savePCDFile("/home/zh/surf.pcd", *map_surf);
+  pcl::io::savePCDFile("/home/zh/outlier.pcd", *map_outlier);
 
   return true;
 }

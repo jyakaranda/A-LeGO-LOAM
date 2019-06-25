@@ -347,7 +347,7 @@ void LaserOdometry::mainLoop()
             int closest_scan = int(surf_last_->points[closest_idx].intensity);
             for (int k = closest_idx + 1; k < surf_last_->points.size(); ++k)
             {
-              if (int(surf_last_->points[k].intensity) > closest_scan + 2)
+              if (int(surf_last_->points[k].intensity) > closest_scan + 2.5)
               {
                 break;
               }
@@ -371,7 +371,7 @@ void LaserOdometry::mainLoop()
             }
             for (int k = closest_idx - 1; k >= 0; --k)
             {
-              if (int(surf_last_->points[k].intensity) < closest_scan - 2)
+              if (int(surf_last_->points[k].intensity) < closest_scan - 2.5)
               {
                 break;
               }

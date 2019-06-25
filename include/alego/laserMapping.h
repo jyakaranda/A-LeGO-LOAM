@@ -1,4 +1,5 @@
 #include "utility.h"
+#include <std_srvs/Empty.h>
 #include <gtsam/geometry/Rot3.h>
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/slam/PriorFactor.h>
@@ -174,6 +175,15 @@ private:
     pcl::transformPointCloud(*cloud_in, *tf_cloud, this_transformation);
     return tf_cloud;
   }
+  PointCloudT::Ptr transformPointCloud(const PointCloudT::ConstPtr cloud_in, const PointTypePose &trans, int idx)
+  {
+    PointCloudT::Ptr tf_cloud = transformPointCloud(cloud_in, trans);
+    for (auto &p : tf_cloud->points)
+    {
+      p.intensity = idx;
+    }
+    return tf_cloud;
+  }
   void pointAssociateToMap(const PointT &p_in, PointT &p_out)
   {
     Eigen::Vector3d out = q_map2laser_ * Eigen::Vector3d(p_in.x, p_in.y, p_in.z) + t_map2laser_;
@@ -182,6 +192,7 @@ private:
     p_out.z = out.z();
     p_out.intensity = p_in.intensity;
   }
+  bool saveMapCB(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 };
 } // namespace loam
 
