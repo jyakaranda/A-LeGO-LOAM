@@ -66,6 +66,7 @@ private:
   double params_corner_[3]; // x, y, yaw
   Eigen::Vector3d t_w_cur_;
   Eigen::Matrix3d r_w_cur_;
+  Eigen::Matrix4d tf_b2l_;
 
   std::mutex m_buf_;
 
@@ -117,6 +118,7 @@ public:
     }
     t_w_cur_.setZero();
     r_w_cur_.setIdentity();
+    tf_b2l_.setIdentity();
 
     pub_corner_ = nh_.advertise<sensor_msgs::PointCloud2>("/corner", 10);
     pub_corner_less_ = nh_.advertise<sensor_msgs::PointCloud2>("/corner_less", 10);
@@ -583,23 +585,27 @@ public:
           ROS_INFO_STREAM("t_w_cur: " << t_w_cur_ << "\nr_w_cur: " << r_w_cur_);
 
           // publish odometry
-          Eigen::Quaterniond tmp_q(r_w_cur_);
+          Eigen::Matrix4d tf_o2b(Eigen::Matrix4d::Identity());
+          tf_o2b.block<3, 3>(0, 0) = r_w_cur_;
+          tf_o2b.block<3, 1>(0, 3) = t_w_cur_;
+          tf_o2b = tf_o2b * tf_b2l_.inverse();
+          Eigen::Quaterniond tmp_q(tf_o2b.block<3, 3>(0, 0));
           nav_msgs::OdometryPtr laser_odometry(new nav_msgs::Odometry);
           laser_odometry->header.frame_id = "/odom";
-          laser_odometry->child_frame_id = "/laser";
+          laser_odometry->child_frame_id = "/base_link";
           laser_odometry->header.stamp = ros::Time().fromSec(t1);
           laser_odometry->pose.pose.orientation.x = tmp_q.x();
           laser_odometry->pose.pose.orientation.y = tmp_q.y();
           laser_odometry->pose.pose.orientation.z = tmp_q.z();
           laser_odometry->pose.pose.orientation.w = tmp_q.w();
-          laser_odometry->pose.pose.position.x = t_w_cur_.x();
-          laser_odometry->pose.pose.position.y = t_w_cur_.y();
-          laser_odometry->pose.pose.position.z = t_w_cur_.z();
+          laser_odometry->pose.pose.position.x = tf_o2b(0, 3);
+          laser_odometry->pose.pose.position.y = tf_o2b(1, 3);
+          laser_odometry->pose.pose.position.z = tf_o2b(2, 3);
           pub_odom_.publish(laser_odometry);
 
-          tf::Transform tf_o2l;
-          tf::poseMsgToTF(laser_odometry->pose.pose, tf_o2l);
-          tf_broad_.sendTransform(tf::StampedTransform(tf_o2l, laser_odometry->header.stamp, "/odom", "/laser"));
+          tf::Transform o2b;
+          tf::poseMsgToTF(laser_odometry->pose.pose, o2b);
+          tf_broad_.sendTransform(tf::StampedTransform(o2b, laser_odometry->header.stamp, "/odom", "/base_link"));
 
           surf_last_ = less_flat;
           corner_last_ = less_sharp;
