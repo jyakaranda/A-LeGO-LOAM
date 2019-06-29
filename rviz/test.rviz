@@ -27,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: sharp
+    SyncSource: keyposes
 Visualization Manager:
   Class: ""
   Displays:
@@ -56,15 +56,9 @@ Visualization Manager:
         All Enabled: true
         base_link:
           Value: true
-        imu_link:
-          Value: true
-        laser:
-          Value: true
         map:
           Value: true
         odom:
-          Value: true
-        wheel_rr:
           Value: true
       Marker Scale: 5
       Name: TF
@@ -75,12 +69,7 @@ Visualization Manager:
         map:
           odom:
             base_link:
-              imu_link:
-                {}
-              laser:
-                {}
-              wheel_rr:
-                {}
+              {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -412,7 +401,7 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 702.099976
+          Max Intensity: 609.099976
           Min Color: 0; 0; 0
           Min Intensity: 0.100000001
           Name: keyposes
@@ -668,16 +657,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 347.864105
+      Distance: 309.752808
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -21.7949886
-        Y: -72.5105057
-        Z: -32.6525269
+        X: -34.5659409
+        Y: -64.1575317
+        Z: -28.2572861
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
@@ -686,7 +675,7 @@ Visualization Manager:
       Pitch: 1.56979632
       Target Frame: map
       Value: Orbit (rviz)
-      Yaw: 1.52586472
+      Yaw: 1.53086472
     Saved: ~
 Window Geometry:
   Displays:
