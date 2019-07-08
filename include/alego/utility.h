@@ -48,13 +48,13 @@ using PointCloudT = pcl::PointCloud<PointT>;
 #define ANGLE2RAD(x) ((x) / 180.0 * M_PI)
 
 const int N_SCAN = 16;
-const double ang_res_x = 0.18; // 10Hz: 0.18, 5Hz: 0.09
+const double ang_res_x = 0.09; // 10Hz: 0.18, 5Hz: 0.09
 const double ang_res_y = 2.0;
-const double scan_period = 0.1; // 10Hz: 0.1, 5Hz: 0.2
+const double scan_period = 0.2; // 10Hz: 0.1, 5Hz: 0.2
 
 const int Horizon_SCAN = 360.0 / ang_res_x + 0.5;
 const double ang_bottom = 15.0;
-const int ground_scan_id = 7;
+const int ground_scan_id = 10;
 const double sensor_mount_ang = 0.; // 向下为正，向上为负
 
 const double seg_alpha_x = ANGLE2RAD(ang_res_x);
@@ -71,6 +71,14 @@ const int imu_queue_length = 200;
 const int odom_queue_length = 1000;
 
 const double nearest_feature_dist = 25.; // sqaured, 对应 5m
+
+enum LaserType
+{
+  LSLIDAR_C16,
+  RFANS_16M
+};
+
+LaserType laser_type = LaserType::RFANS_16M;
 
 struct PointXYZIRPYT
 {

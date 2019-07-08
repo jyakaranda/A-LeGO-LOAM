@@ -135,7 +135,46 @@ public:
     {
       auto &p = cloud_in->points[i];
       vertical_ang = RAD2ANGLE(atan2(p.z, hypot(p.x, p.y)));
-      row_id = (vertical_ang + ang_bottom) / ang_res_y + 0.5;
+      if (LaserType::LSLIDAR_C16 == laser_type)
+      {
+        row_id = (vertical_ang + ang_bottom) / ang_res_y + 0.5;
+      }
+      else if (LaserType::RFANS_16M == laser_type)
+      {
+        if (vertical_ang > 4.5)
+        {
+          row_id = 13 + (vertical_ang - 5.) / 3 + 0.5;
+        }
+        else if (vertical_ang > 0.5)
+        {
+          row_id = 11 + (vertical_ang - 1.0) / 2 + 0.5;
+        }
+        else if (vertical_ang > -7.)
+        {
+          row_id = 10.5 + vertical_ang;
+        }
+        else if (vertical_ang > -8.5)
+        {
+          row_id = 3;
+        }
+        else if (vertical_ang > -10.5)
+        {
+          row_id = 2;
+        }
+        else if (vertical_ang > -13.5)
+        {
+          row_id = 1;
+        }
+        else
+        {
+          row_id = 0;
+        }
+      }
+      else
+      {
+        ROS_ERROR("not surpported laser type.");
+        return;
+      }
       if (row_id < 0 || row_id >= N_SCAN)
       {
         ROS_WARN("error row_id");
